@@ -29,13 +29,16 @@ This is "湯めぐり手帳" (Yumeguri Techou) - a Japanese bath house (sento) v
 
 ```bash
 # Start development server
-npm run dev
+pnpm dev
 
 # Build for web
-npm run build:web
+pnpm build:web
 
 # Lint code
-npm run lint
+pnpm lint
+
+# Install dependencies
+pnpm install
 ```
 
 ## Data Models
