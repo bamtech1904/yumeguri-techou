@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -53,6 +53,7 @@ export default function CalendarScreen() {
 
   const today = new Date().toISOString().split('T')[0];
   const currentMonth = new Date().toISOString().slice(0, 7);
+
   const monthlyVisits = getVisitsForMonth(currentMonth);
 
   // Create marked dates for calendar
@@ -253,7 +254,7 @@ export default function CalendarScreen() {
       <Modal
         animationType="slide"
         transparent={true}
-        visible={modalVisible}
+        visible={modalVisible && !facilitySearchVisible}
         onRequestClose={() => setModalVisible(false)}
       >
         <View style={styles.modalOverlay}>
@@ -579,6 +580,10 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     borderWidth: 1,
     borderColor: '#0ea5e9',
+    minWidth: 44, // タッチ領域を確保
+    minHeight: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   selectedFacilityContainer: {
     marginTop: 12,

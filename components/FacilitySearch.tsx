@@ -9,6 +9,7 @@ import {
   Modal,
   ActivityIndicator,
   Alert,
+  SafeAreaView,
 } from 'react-native';
 import { Search, MapPin, Star, X, Locate } from 'lucide-react-native';
 import { Place } from '@/types/place';
@@ -37,11 +38,15 @@ export default function FacilitySearch({ visible, onClose, onSelect }: FacilityS
 
   const handleSearch = (query: string) => {
     setSearchQuery(query);
-    const filtered = facilities.filter(facility =>
-      facility.name.toLowerCase().includes(query.toLowerCase()) ||
-      facility.formatted_address.toLowerCase().includes(query.toLowerCase())
-    );
-    setFilteredFacilities(filtered);
+    if (query.trim() === '') {
+      setFilteredFacilities(facilities);
+    } else {
+      const filtered = facilities.filter(facility =>
+        facility.name.toLowerCase().includes(query.toLowerCase()) ||
+        facility.formatted_address.toLowerCase().includes(query.toLowerCase())
+      );
+      setFilteredFacilities(filtered);
+    }
   };
 
   const loadNearbyFacilities = async () => {
@@ -96,18 +101,11 @@ export default function FacilitySearch({ visible, onClose, onSelect }: FacilityS
   }, [visible]);
 
   useEffect(() => {
-    if (searchQuery) {
-      const timeoutId = setTimeout(() => {
-        if (currentLocation) {
-          loadNearbyFacilities();
-        }
-      }, 500);
-      return () => clearTimeout(timeoutId);
-    } else {
+    if (searchQuery.trim() === '') {
       setFilteredFacilities(facilities);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchQuery]);
+  }, [searchQuery, facilities]);
 
   const renderStars = (rating: number) => {
     return (
@@ -145,13 +143,18 @@ export default function FacilitySearch({ visible, onClose, onSelect }: FacilityS
     </TouchableOpacity>
   );
 
+  if (!visible) {
+    return null;
+  }
+
   return (
     <Modal
       visible={visible}
       animationType="slide"
-      presentationStyle="pageSheet"
+      presentationStyle="fullScreen"
+      transparent={false}
     >
-      <View style={styles.container}>
+      <SafeAreaView style={styles.container}>
         <View style={styles.header}>
           <Text style={styles.title}>銭湯を検索</Text>
           <TouchableOpacity onPress={onClose}>
@@ -209,7 +212,7 @@ export default function FacilitySearch({ visible, onClose, onSelect }: FacilityS
             }
           />
         )}
-      </View>
+      </SafeAreaView>
     </Modal>
   );
 }
