@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import {
   View,
   Text,
@@ -11,9 +11,16 @@ import {
   Alert,
 } from 'react-native';
 import { Calendar, LocaleConfig } from 'react-native-calendars';
-import { Plus, Bath, Star, Clock, MapPin } from 'lucide-react-native';
+import { Plus, Bath, Star, Clock, MapPin, Search } from 'lucide-react-native';
 import { useVisitStore } from '@/store/visitStore';
 import { format } from 'date-fns';
+import FacilitySearch from '@/components/FacilitySearch';
+import { Place } from '@/types/place';
+
+interface FacilityWithDistance extends Place {
+  distance?: string;
+  distanceKm?: number;
+}
 
 // Japanese locale configuration
 LocaleConfig.locales['ja'] = {
@@ -41,6 +48,8 @@ export default function CalendarScreen() {
     rating: 5,
     comment: '',
   });
+  const [facilitySearchVisible, setFacilitySearchVisible] = useState(false);
+  const [selectedFacility, setSelectedFacility] = useState<FacilityWithDistance | null>(null);
 
   const today = new Date().toISOString().split('T')[0];
   const currentMonth = new Date().toISOString().slice(0, 7);
@@ -67,7 +76,17 @@ export default function CalendarScreen() {
 
   const handleDatePress = (day: any) => {
     setSelectedDate(day.dateString);
+    setSelectedFacility(null);
     setModalVisible(true);
+  };
+
+  const handleFacilitySelect = (facility: FacilityWithDistance) => {
+    setSelectedFacility(facility);
+    setNewVisit({
+      ...newVisit,
+      bathName: facility.name,
+    });
+    setFacilitySearchVisible(false);
   };
 
   const handleAddVisit = () => {
@@ -76,7 +95,7 @@ export default function CalendarScreen() {
       return;
     }
 
-    addVisit({
+    const visitData = {
       id: Date.now().toString(),
       date: selectedDate,
       bathName: newVisit.bathName,
@@ -84,7 +103,22 @@ export default function CalendarScreen() {
       rating: newVisit.rating,
       comment: newVisit.comment,
       createdAt: new Date().toISOString(),
-    });
+      // Add facility data if available
+      ...(selectedFacility && {
+        address: selectedFacility.formatted_address,
+        placeId: selectedFacility.place_id,
+        coordinates: {
+          latitude: selectedFacility.geometry.location.lat,
+          longitude: selectedFacility.geometry.location.lng,
+        },
+        phoneNumber: selectedFacility.formatted_phone_number,
+        website: selectedFacility.website,
+        openingHours: selectedFacility.opening_hours,
+        priceLevel: selectedFacility.price_level,
+      }),
+    };
+
+    addVisit(visitData);
 
     setNewVisit({
       bathName: '',
@@ -92,6 +126,7 @@ export default function CalendarScreen() {
       rating: 5,
       comment: '',
     });
+    setSelectedFacility(null);
     setModalVisible(false);
   };
 
@@ -208,6 +243,7 @@ export default function CalendarScreen() {
         style={styles.fab}
         onPress={() => {
           setSelectedDate(today);
+          setSelectedFacility(null);
           setModalVisible(true);
         }}
       >
@@ -228,12 +264,38 @@ export default function CalendarScreen() {
 
             <View style={styles.inputContainer}>
               <Text style={styles.inputLabel}>銭湯名</Text>
-              <TextInput
-                style={styles.textInput}
-                value={newVisit.bathName}
-                onChangeText={(text) => setNewVisit({...newVisit, bathName: text})}
-                placeholder="例: 山田湯"
-              />
+              <View style={styles.facilityInputContainer}>
+                <TextInput
+                  style={[styles.textInput, styles.facilityInput]}
+                  value={newVisit.bathName}
+                  onChangeText={(text) => setNewVisit({...newVisit, bathName: text})}
+                  placeholder="例: 山田湯"
+                />
+                <TouchableOpacity
+                  style={styles.searchButton}
+                  onPress={() => setFacilitySearchVisible(true)}
+                >
+                  <Search size={20} color="#0ea5e9" />
+                </TouchableOpacity>
+              </View>
+              {selectedFacility && (
+                <View style={styles.selectedFacilityContainer}>
+                  <View style={styles.selectedFacilityHeader}>
+                    <MapPin size={16} color="#0ea5e9" />
+                    <Text style={styles.selectedFacilityName}>{selectedFacility.name}</Text>
+                  </View>
+                  <Text style={styles.selectedFacilityAddress}>{selectedFacility.formatted_address}</Text>
+                  {selectedFacility.distance && (
+                    <Text style={styles.selectedFacilityDistance}>距離: {selectedFacility.distance}</Text>
+                  )}
+                  {selectedFacility.rating && (
+                    <View style={styles.selectedFacilityRating}>
+                      <Text style={styles.selectedFacilityRatingText}>評価: {selectedFacility.rating.toFixed(1)}</Text>
+                      {renderStars(selectedFacility.rating)}
+                    </View>
+                  )}
+                </View>
+              )}
             </View>
 
             <View style={styles.inputContainer}>
@@ -280,6 +342,12 @@ export default function CalendarScreen() {
           </View>
         </View>
       </Modal>
+
+      <FacilitySearch
+        visible={facilitySearchVisible}
+        onClose={() => setFacilitySearchVisible(false)}
+        onSelect={handleFacilitySelect}
+      />
     </SafeAreaView>
   );
 }
@@ -496,5 +564,58 @@ const styles = StyleSheet.create({
     color: '#ffffff',
     fontSize: 16,
     fontWeight: '500',
+  },
+  facilityInputContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  facilityInput: {
+    flex: 1,
+    marginRight: 8,
+  },
+  searchButton: {
+    padding: 12,
+    backgroundColor: '#f0f9ff',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#0ea5e9',
+  },
+  selectedFacilityContainer: {
+    marginTop: 12,
+    padding: 12,
+    backgroundColor: '#f0f9ff',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#0ea5e9',
+  },
+  selectedFacilityHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
+  selectedFacilityName: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#1e293b',
+    marginLeft: 6,
+  },
+  selectedFacilityAddress: {
+    fontSize: 14,
+    color: '#64748b',
+    marginBottom: 4,
+  },
+  selectedFacilityDistance: {
+    fontSize: 14,
+    color: '#64748b',
+    marginBottom: 4,
+  },
+  selectedFacilityRating: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  selectedFacilityRatingText: {
+    fontSize: 14,
+    color: '#64748b',
   },
 });

@@ -20,6 +20,17 @@ export interface Visit {
     service: number;
     comfort: number;
   };
+  // Google Places integration
+  placeId?: string;
+  coordinates?: {
+    latitude: number;
+    longitude: number;
+  };
+  // Additional metadata
+  phoneNumber?: string;
+  website?: string;
+  openingHours?: any;
+  priceLevel?: number;
 }
 
 interface VisitStore {

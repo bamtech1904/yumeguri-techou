@@ -8,111 +8,188 @@ import {
   TextInput,
   FlatList,
   Alert,
+  ActivityIndicator,
+  Linking,
+  Platform,
 } from 'react-native';
-import { MapPin, Search, Star, Navigation } from 'lucide-react-native';
+// Temporary: Using placeholder until Expo MapView is properly configured
+import { MapPin, Search, Star, Navigation, Locate, Heart } from 'lucide-react-native';
+import { Place } from '@/types/place';
+import { placesService } from '@/services/placesService';
+import { locationService, LocationCoords } from '@/services/locationService';
+import { useVisitStore } from '@/store/visitStore';
+import ApiDebugInfo from '@/components/ApiDebugInfo';
 
-interface BathFacility {
-  id: string;
-  name: string;
-  address: string;
-  rating: number;
-  distance: string;
-  price: string;
-  coordinates: {
-    latitude: number;
-    longitude: number;
-  };
+interface FacilityWithDistance extends Place {
+  distance?: string;
+  distanceKm?: number;
+  isVisited?: boolean;
 }
 
-const mockBathFacilities: BathFacility[] = [
-  {
-    id: '1',
-    name: '大江戸温泉物語',
-    address: '東京都江東区青海2-6-3',
-    rating: 4.2,
-    distance: '1.2km',
-    price: '¥2,900',
-    coordinates: { latitude: 35.6267, longitude: 139.7826 },
-  },
-  {
-    id: '2',
-    name: '湯乃泉 草加健康センター',
-    address: '埼玉県草加市稲荷3-1-20',
-    rating: 4.5,
-    distance: '2.3km',
-    price: '¥800',
-    coordinates: { latitude: 35.8267, longitude: 139.8026 },
-  },
-  {
-    id: '3',
-    name: '桜湯',
-    address: '東京都台東区谷中3-10-5',
-    rating: 4.0,
-    distance: '3.1km',
-    price: '¥520',
-    coordinates: { latitude: 35.7267, longitude: 139.7626 },
-  },
-  {
-    id: '4',
-    name: '金春湯',
-    address: '東京都新宿区西新宿7-17-11',
-    rating: 4.3,
-    distance: '4.2km',
-    price: '¥520',
-    coordinates: { latitude: 35.6967, longitude: 139.6986 },
-  },
-  {
-    id: '5',
-    name: '天然温泉 久松湯',
-    address: '東京都中央区日本橋人形町3-2-14',
-    rating: 4.1,
-    distance: '1.8km',
-    price: '¥520',
-    coordinates: { latitude: 35.6867, longitude: 139.7786 },
-  },
-];
 
 export default function MapScreen() {
   const [searchQuery, setSearchQuery] = useState('');
-  const [filteredFacilities, setFilteredFacilities] = useState<BathFacility[]>(mockBathFacilities);
-  const [selectedFacility, setSelectedFacility] = useState<BathFacility | null>(null);
+  const [facilities, setFacilities] = useState<FacilityWithDistance[]>([]);
+  const [filteredFacilities, setFilteredFacilities] = useState<FacilityWithDistance[]>([]);
+  const [currentLocation, setCurrentLocation] = useState<LocationCoords | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [mapLoading, setMapLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [showList, setShowList] = useState(false);
+  const [showDebug, setShowDebug] = useState(false);
+  
+  const { visits } = useVisitStore();
 
   useEffect(() => {
-    const filtered = mockBathFacilities.filter(facility =>
+    const filtered = facilities.filter(facility =>
       facility.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      facility.address.toLowerCase().includes(searchQuery.toLowerCase())
+      facility.formatted_address.toLowerCase().includes(searchQuery.toLowerCase())
     );
     setFilteredFacilities(filtered);
-  }, [searchQuery]);
+  }, [searchQuery, facilities]);
 
-  const handleFacilityPress = (facility: BathFacility) => {
-    setSelectedFacility(facility);
+  useEffect(() => {
+    loadCurrentLocationAndFacilities();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const loadCurrentLocationAndFacilities = async () => {
+    setLoading(true);
+    setError(null);
+    
+    try {
+      const location = await locationService.getCurrentLocation();
+      setCurrentLocation(location);
+      
+      const places = await placesService.searchNearbyBathhouses(location, 5000, searchQuery);
+      
+      const facilitiesWithDistance = places.map(place => {
+        const distanceKm = locationService.calculateDistance(
+          location.latitude,
+          location.longitude,
+          place.geometry.location.lat,
+          place.geometry.location.lng
+        );
+        
+        // Check if this facility has been visited
+        const isVisited = visits.some(visit => 
+          visit.bathName === place.name || visit.address === place.formatted_address
+        );
+        
+        return {
+          ...place,
+          distance: locationService.formatDistance(distanceKm),
+          distanceKm,
+          isVisited,
+        };
+      }).sort((a, b) => (a.distanceKm || 0) - (b.distanceKm || 0));
+      
+      setFacilities(facilitiesWithDistance);
+      setFilteredFacilities(facilitiesWithDistance);
+    } catch (error) {
+      console.error('Error loading location and facilities:', error);
+      setError('周辺の銭湯を検索できませんでした。位置情報の許可を確認してください。');
+    } finally {
+      setLoading(false);
+      setMapLoading(false);
+    }
   };
 
-  const handleAddToWishlist = (facility: BathFacility) => {
+  const handleFacilityPress = (facility: FacilityWithDistance) => {
+    // TODO: Navigate to facility details or add to visit
+    console.log('Selected facility:', facility.name);
+  };
+
+
+  const handleAddToWishlist = (facility: FacilityWithDistance) => {
     Alert.alert(
       '行きたいリストに追加',
       `${facility.name}を行きたいリストに追加しますか？`,
       [
         { text: 'キャンセル', style: 'cancel' },
         { text: '追加', onPress: () => {
+          // TODO: Implement wishlist functionality
           Alert.alert('追加完了', `${facility.name}を行きたいリストに追加しました！`);
         }},
       ]
     );
   };
 
-  const handleGetDirections = (facility: BathFacility) => {
-    Alert.alert(
-      'ルート案内',
-      `${facility.name}への道順を表示しますか？`,
-      [
-        { text: 'キャンセル', style: 'cancel' },
-        { text: '案内開始', onPress: () => {
-          Alert.alert('案内開始', 'Google Mapsでルート案内を開始します');
-        }},
-      ]
-    );
+  const handleViewOnMaps = async (facility: FacilityWithDistance) => {
+    const { lat, lng } = facility.geometry.location;
+    const facilityName = encodeURIComponent(facility.name);
+    const coordinates = `${lat},${lng}`;
+    
+    // Google Maps専用のURLスキーム（施設情報表示用）
+    const googleMapsAppUrls = Platform.select({
+      ios: [
+        // Google Maps アプリ (iOS) - 施設情報を表示
+        `comgooglemaps://?q=${coordinates}(${facilityName})&zoom=16`,
+        `comgooglemaps://?q=${facilityName}&center=${coordinates}`,
+      ],
+      android: [
+        // Google Maps アプリ (Android) - 施設情報を表示
+        `geo:${coordinates}?q=${coordinates}(${facilityName})`,
+        `geo:0,0?q=${facilityName}`,
+      ],
+    }) || [];
+    
+    // ウェブ版Google Maps（フォールバック）- 施設の詳細情報を表示
+    // より確実に表示されるURLを構築
+    const googleMapsWebUrl = `https://www.google.com/maps/search/${facilityName}/@${coordinates},16z/data=!3m1!4b1`;
+    
+    console.log(`🗺️ ${facility.name}の情報をGoogle Mapsで表示`);
+    console.log(`📍 位置: ${coordinates}`);
+    console.log(`🆔 Place ID: ${facility.place_id}`);
+    console.log(`🌐 ウェブURL: ${googleMapsWebUrl}`);
+    
+    try {
+      // Google Maps アプリのURLスキームを順番に試行
+      let opened = false;
+      
+      for (const url of googleMapsAppUrls) {
+        try {
+          const supported = await Linking.canOpenURL(url);
+          if (supported) {
+            console.log(`✅ Google Mapsアプリで施設情報を表示: ${url.split('://')[0]}`);
+            await Linking.openURL(url);
+            opened = true;
+            break;
+          }
+        } catch (error) {
+          console.log(`❌ ${url.split('://')[0]} スキーム失敗:`, error);
+          continue;
+        }
+      }
+      
+      // アプリで開けなかった場合はウェブ版を開く
+      if (!opened) {
+        console.log(`🌐 ウェブ版Google Mapsで施設情報を表示`);
+        try {
+          await Linking.openURL(googleMapsWebUrl);
+        } catch (webError) {
+          console.log(`❌ Google Maps Web版失敗、Google検索で代替:`, webError);
+          // 最終的なフォールバック: Google検索
+          const googleSearchUrl = `https://www.google.com/search?q=${facilityName}+銭湯+${encodeURIComponent(facility.formatted_address)}`;
+          await Linking.openURL(googleSearchUrl);
+        }
+      }
+    } catch (error) {
+      console.error('❌ 施設情報の表示でエラー:', error);
+      Alert.alert(
+        '施設情報を表示できません', 
+        'Google Mapsで施設情報を表示できませんでした。インターネット接続を確認してください。',
+        [{ text: 'OK' }]
+      );
+    }
+  };
+
+  const handleRefresh = () => {
+    loadCurrentLocationAndFacilities();
+  };
+
+  const toggleView = () => {
+    setShowList(!showList);
   };
 
   const renderStars = (rating: number) => {
@@ -130,7 +207,7 @@ export default function MapScreen() {
     );
   };
 
-  const renderFacilityItem = ({ item }: { item: BathFacility }) => (
+  const renderFacilityItem = ({ item }: { item: FacilityWithDistance }) => (
     <TouchableOpacity
       style={styles.facilityCard}
       onPress={() => handleFacilityPress(item)}
@@ -138,18 +215,25 @@ export default function MapScreen() {
       <View style={styles.facilityHeader}>
         <MapPin size={20} color="#0ea5e9" />
         <View style={styles.facilityInfo}>
-          <Text style={styles.facilityName}>{item.name}</Text>
-          <Text style={styles.facilityAddress}>{item.address}</Text>
+          <View style={styles.facilityNameContainer}>
+            <Text style={styles.facilityName}>{item.name}</Text>
+            {item.isVisited && (
+              <View style={styles.visitedBadge}>
+                <Text style={styles.visitedBadgeText}>訪問済</Text>
+              </View>
+            )}
+          </View>
+          <Text style={styles.facilityAddress}>{item.formatted_address}</Text>
         </View>
       </View>
       
       <View style={styles.facilityDetails}>
         <View style={styles.ratingContainer}>
-          {renderStars(item.rating)}
-          <Text style={styles.ratingText}>{item.rating}</Text>
+          {renderStars(item.rating || 0)}
+          <Text style={styles.ratingText}>{item.rating?.toFixed(1) || 'N/A'}</Text>
         </View>
-        <Text style={styles.distanceText}>{item.distance}</Text>
-        <Text style={styles.priceText}>{item.price}</Text>
+        <Text style={styles.distanceText}>{item.distance || ''}</Text>
+        <Text style={styles.priceText}>{placesService.formatPriceLevel(item.price_level)}</Text>
       </View>
 
       <View style={styles.facilityActions}>
@@ -157,14 +241,15 @@ export default function MapScreen() {
           style={styles.actionButton}
           onPress={() => handleAddToWishlist(item)}
         >
-          <Text style={styles.actionButtonText}>行きたいリスト</Text>
+          <Heart size={16} color="#ef4444" />
+          <Text style={styles.actionButtonText}>行きたい</Text>
         </TouchableOpacity>
         <TouchableOpacity
           style={[styles.actionButton, styles.primaryButton]}
-          onPress={() => handleGetDirections(item)}
+          onPress={() => handleViewOnMaps(item)}
         >
           <Navigation size={16} color="#ffffff" />
-          <Text style={styles.primaryButtonText}>道順</Text>
+          <Text style={styles.primaryButtonText}>地図で見る</Text>
         </TouchableOpacity>
       </View>
     </TouchableOpacity>
@@ -173,7 +258,32 @@ export default function MapScreen() {
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
-        <Text style={styles.title}>近くの銭湯</Text>
+        <View style={styles.headerTop}>
+          <Text style={styles.title}>近くの銭湯</Text>
+          <View style={styles.headerActions}>
+            <TouchableOpacity
+              style={styles.refreshButton}
+              onPress={handleRefresh}
+              disabled={loading}
+            >
+              <Locate size={20} color={loading ? '#9ca3af' : '#0ea5e9'} />
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.viewToggle, showList && styles.viewToggleActive]}
+              onPress={toggleView}
+            >
+              <Text style={[styles.viewToggleText, showList && styles.viewToggleTextActive]}>
+                {showList ? '地図' : 'リスト'}
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.debugButton}
+              onPress={() => setShowDebug(true)}
+            >
+              <Text style={styles.debugButtonText}>🔧</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
         <View style={styles.searchContainer}>
           <Search size={20} color="#64748b" />
           <TextInput
@@ -185,28 +295,76 @@ export default function MapScreen() {
         </View>
       </View>
 
-      <View style={styles.mapPlaceholder}>
-        <View style={styles.mapContent}>
-          <MapPin size={48} color="#0ea5e9" />
-          <Text style={styles.mapText}>地図表示エリア</Text>
-          <Text style={styles.mapSubtext}>
-            実際の実装では、ここにGoogle Mapsが表示されます
-          </Text>
+      {!showList && (
+        <View style={styles.mapContainer}>
+          {mapLoading ? (
+            <View style={styles.mapPlaceholder}>
+              <ActivityIndicator size="large" color="#0ea5e9" />
+              <Text style={styles.loadingText}>地図を読み込み中...</Text>
+            </View>
+          ) : currentLocation ? (
+            <View style={styles.mapPlaceholder}>
+              <View style={styles.mapContent}>
+                <MapPin size={48} color="#0ea5e9" />
+                <Text style={styles.mapText}>地図表示（開発中）</Text>
+                <Text style={styles.mapSubtext}>
+                  現在地: {currentLocation.latitude.toFixed(4)}, {currentLocation.longitude.toFixed(4)}
+                </Text>
+                <Text style={styles.mapSubtext}>
+                  周辺施設: {filteredFacilities.length}件
+                </Text>
+              </View>
+            </View>
+          ) : (
+            <View style={styles.mapPlaceholder}>
+              <MapPin size={48} color="#ef4444" />
+              <Text style={styles.errorText}>位置情報を取得できません</Text>
+              <TouchableOpacity style={styles.retryButton} onPress={handleRefresh}>
+                <Text style={styles.retryButtonText}>再試行</Text>
+              </TouchableOpacity>
+            </View>
+          )}
         </View>
-      </View>
+      )}
 
-      <View style={styles.facilitiesSection}>
-        <Text style={styles.sectionTitle}>
-          周辺の銭湯 ({filteredFacilities.length}件)
-        </Text>
-        <FlatList
-          data={filteredFacilities}
-          renderItem={renderFacilityItem}
-          keyExtractor={(item) => item.id}
-          showsVerticalScrollIndicator={false}
-          contentContainerStyle={styles.facilitiesList}
-        />
-      </View>
+      {showList && (
+        <View style={styles.facilitiesSection}>
+          <Text style={styles.sectionTitle}>
+            周辺の銭湯 ({filteredFacilities.length}件)
+          </Text>
+          {loading ? (
+            <View style={styles.loadingContainer}>
+              <ActivityIndicator size="large" color="#0ea5e9" />
+              <Text style={styles.loadingText}>検索中...</Text>
+            </View>
+          ) : error ? (
+            <View style={styles.errorContainer}>
+              <Text style={styles.errorText}>{error}</Text>
+              <TouchableOpacity style={styles.retryButton} onPress={handleRefresh}>
+                <Text style={styles.retryButtonText}>再試行</Text>
+              </TouchableOpacity>
+            </View>
+          ) : (
+            <FlatList
+              data={filteredFacilities}
+              renderItem={renderFacilityItem}
+              keyExtractor={(item) => item.place_id}
+              showsVerticalScrollIndicator={false}
+              contentContainerStyle={styles.facilitiesList}
+              ListEmptyComponent={
+                <View style={styles.emptyContainer}>
+                  <Text style={styles.emptyText}>周辺に銭湯が見つかりませんでした</Text>
+                </View>
+              }
+            />
+          )}
+        </View>
+      )}
+      
+      <ApiDebugInfo 
+        visible={showDebug} 
+        onClose={() => setShowDebug(false)} 
+      />
     </SafeAreaView>
   );
 }
@@ -354,6 +512,9 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     backgroundColor: '#f1f5f9',
     alignItems: 'center',
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: 4,
   },
   primaryButton: {
     backgroundColor: '#0ea5e9',
@@ -370,5 +531,150 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '500',
     color: '#ffffff',
+  },
+  headerTop: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 16,
+  },
+  headerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  refreshButton: {
+    padding: 8,
+    borderRadius: 8,
+    backgroundColor: '#f1f5f9',
+  },
+  viewToggle: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 8,
+    backgroundColor: '#f1f5f9',
+  },
+  viewToggleActive: {
+    backgroundColor: '#0ea5e9',
+  },
+  viewToggleText: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#64748b',
+  },
+  viewToggleTextActive: {
+    color: '#ffffff',
+  },
+  debugButton: {
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 8,
+    backgroundColor: '#f59e0b',
+  },
+  debugButtonText: {
+    fontSize: 16,
+  },
+  mapContainer: {
+    height: 300,
+    marginHorizontal: 20,
+    marginBottom: 24,
+    borderRadius: 16,
+    overflow: 'hidden',
+  },
+  map: {
+    flex: 1,
+  },
+  loadingContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 40,
+  },
+  loadingText: {
+    marginTop: 12,
+    fontSize: 16,
+    color: '#64748b',
+  },
+  errorContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 40,
+  },
+  errorText: {
+    fontSize: 16,
+    color: '#ef4444',
+    textAlign: 'center',
+    marginBottom: 16,
+  },
+  retryButton: {
+    backgroundColor: '#0ea5e9',
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 8,
+  },
+  retryButtonText: {
+    color: '#ffffff',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  emptyContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 60,
+  },
+  emptyText: {
+    fontSize: 16,
+    color: '#64748b',
+    textAlign: 'center',
+  },
+  facilityNameContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
+  visitedBadge: {
+    backgroundColor: '#10b981',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 12,
+    marginLeft: 8,
+  },
+  visitedBadgeText: {
+    fontSize: 10,
+    fontWeight: '500',
+    color: '#ffffff',
+  },
+  calloutContainer: {
+    width: 200,
+    padding: 12,
+  },
+  calloutTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#1e293b',
+    marginBottom: 4,
+  },
+  calloutAddress: {
+    fontSize: 12,
+    color: '#64748b',
+    marginBottom: 8,
+  },
+  calloutDetails: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  calloutRating: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  calloutRatingText: {
+    fontSize: 12,
+    color: '#64748b',
+    marginLeft: 4,
+  },
+  calloutPrice: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#0ea5e9',
   },
 });

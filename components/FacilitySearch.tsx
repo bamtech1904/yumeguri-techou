@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -7,63 +7,107 @@ import {
   TouchableOpacity,
   FlatList,
   Modal,
+  ActivityIndicator,
+  Alert,
 } from 'react-native';
-import { Search, MapPin, Star, X } from 'lucide-react-native';
+import { Search, MapPin, Star, X, Locate } from 'lucide-react-native';
+import { Place } from '@/types/place';
+import { placesService } from '@/services/placesService';
+import { locationService, LocationCoords } from '@/services/locationService';
 
-interface Facility {
-  id: string;
-  name: string;
-  address: string;
-  rating: number;
-  priceRange: string;
-  distance: string;
+interface FacilityWithDistance extends Place {
+  distance?: string;
+  distanceKm?: number;
 }
 
 interface FacilitySearchProps {
   visible: boolean;
   onClose: () => void;
-  onSelect: (facility: Facility) => void;
+  onSelect: (facility: FacilityWithDistance) => void;
 }
 
-const mockFacilities: Facility[] = [
-  {
-    id: '1',
-    name: '大江戸温泉物語',
-    address: '東京都江東区青海2-6-3',
-    rating: 4.2,
-    priceRange: '¥2,900',
-    distance: '1.2km',
-  },
-  {
-    id: '2',
-    name: '湯乃泉 草加健康センター',
-    address: '埼玉県草加市稲荷3-1-20',
-    rating: 4.5,
-    priceRange: '¥800',
-    distance: '2.3km',
-  },
-  {
-    id: '3',
-    name: '桜湯',
-    address: '東京都台東区谷中3-10-5',
-    rating: 4.0,
-    priceRange: '¥520',
-    distance: '3.1km',
-  },
-];
 
 export default function FacilitySearch({ visible, onClose, onSelect }: FacilitySearchProps) {
   const [searchQuery, setSearchQuery] = useState('');
-  const [filteredFacilities, setFilteredFacilities] = useState<Facility[]>(mockFacilities);
+  const [facilities, setFacilities] = useState<FacilityWithDistance[]>([]);
+  const [filteredFacilities, setFilteredFacilities] = useState<FacilityWithDistance[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [currentLocation, setCurrentLocation] = useState<LocationCoords | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   const handleSearch = (query: string) => {
     setSearchQuery(query);
-    const filtered = mockFacilities.filter(facility =>
+    const filtered = facilities.filter(facility =>
       facility.name.toLowerCase().includes(query.toLowerCase()) ||
-      facility.address.toLowerCase().includes(query.toLowerCase())
+      facility.formatted_address.toLowerCase().includes(query.toLowerCase())
     );
     setFilteredFacilities(filtered);
   };
+
+  const loadNearbyFacilities = async () => {
+    setLoading(true);
+    setError(null);
+    
+    try {
+      const location = await locationService.getCurrentLocation();
+      setCurrentLocation(location);
+      
+      const places = await placesService.searchNearbyBathhouses(location, 5000, searchQuery);
+      
+      const facilitiesWithDistance = places.map(place => {
+        const distanceKm = locationService.calculateDistance(
+          location.latitude,
+          location.longitude,
+          place.geometry.location.lat,
+          place.geometry.location.lng
+        );
+        
+        return {
+          ...place,
+          distance: locationService.formatDistance(distanceKm),
+          distanceKm,
+        };
+      }).sort((a, b) => (a.distanceKm || 0) - (b.distanceKm || 0));
+      
+      setFacilities(facilitiesWithDistance);
+      setFilteredFacilities(facilitiesWithDistance);
+    } catch (error) {
+      console.error('Error loading nearby facilities:', error);
+      setError('周辺の銭湯を検索できませんでした。位置情報の許可を確認してください。');
+      Alert.alert(
+        'エラー',
+        '周辺の銭湯を検索できませんでした。位置情報の許可を確認してください。',
+        [{ text: 'OK' }]
+      );
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleRefresh = () => {
+    loadNearbyFacilities();
+  };
+
+  useEffect(() => {
+    if (visible && facilities.length === 0) {
+      loadNearbyFacilities();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [visible]);
+
+  useEffect(() => {
+    if (searchQuery) {
+      const timeoutId = setTimeout(() => {
+        if (currentLocation) {
+          loadNearbyFacilities();
+        }
+      }, 500);
+      return () => clearTimeout(timeoutId);
+    } else {
+      setFilteredFacilities(facilities);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchQuery]);
 
   const renderStars = (rating: number) => {
     return (
@@ -80,7 +124,7 @@ export default function FacilitySearch({ visible, onClose, onSelect }: FacilityS
     );
   };
 
-  const renderFacilityItem = ({ item }: { item: Facility }) => (
+  const renderFacilityItem = ({ item }: { item: FacilityWithDistance }) => (
     <TouchableOpacity
       style={styles.facilityItem}
       onPress={() => onSelect(item)}
@@ -89,14 +133,14 @@ export default function FacilitySearch({ visible, onClose, onSelect }: FacilityS
         <MapPin size={16} color="#0ea5e9" />
         <Text style={styles.facilityName}>{item.name}</Text>
       </View>
-      <Text style={styles.facilityAddress}>{item.address}</Text>
+      <Text style={styles.facilityAddress}>{item.formatted_address}</Text>
       <View style={styles.facilityDetails}>
         <View style={styles.ratingContainer}>
-          {renderStars(item.rating)}
-          <Text style={styles.ratingText}>{item.rating}</Text>
+          {renderStars(item.rating || 0)}
+          <Text style={styles.ratingText}>{item.rating?.toFixed(1) || 'N/A'}</Text>
         </View>
-        <Text style={styles.distanceText}>{item.distance}</Text>
-        <Text style={styles.priceText}>{item.priceRange}</Text>
+        <Text style={styles.distanceText}>{item.distance || ''}</Text>
+        <Text style={styles.priceText}>{placesService.formatPriceLevel(item.price_level)}</Text>
       </View>
     </TouchableOpacity>
   );
@@ -123,15 +167,48 @@ export default function FacilitySearch({ visible, onClose, onSelect }: FacilityS
             value={searchQuery}
             onChangeText={handleSearch}
           />
+          <TouchableOpacity
+            style={styles.refreshButton}
+            onPress={handleRefresh}
+            disabled={loading}
+          >
+            <Locate size={20} color={loading ? '#9ca3af' : '#0ea5e9'} />
+          </TouchableOpacity>
         </View>
 
-        <FlatList
-          data={filteredFacilities}
-          renderItem={renderFacilityItem}
-          keyExtractor={(item) => item.id}
-          contentContainerStyle={styles.facilitiesList}
-          showsVerticalScrollIndicator={false}
-        />
+        {loading && (
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="large" color="#0ea5e9" />
+            <Text style={styles.loadingText}>周辺の銭湯を検索中...</Text>
+          </View>
+        )}
+
+        {error && (
+          <View style={styles.errorContainer}>
+            <Text style={styles.errorText}>{error}</Text>
+            <TouchableOpacity style={styles.retryButton} onPress={loadNearbyFacilities}>
+              <Text style={styles.retryButtonText}>再試行</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+
+        {!loading && !error && (
+          <FlatList
+            data={filteredFacilities}
+            renderItem={renderFacilityItem}
+            keyExtractor={(item) => item.place_id}
+            contentContainerStyle={styles.facilitiesList}
+            showsVerticalScrollIndicator={false}
+            ListEmptyComponent={
+              <View style={styles.emptyContainer}>
+                <Text style={styles.emptyText}>周辺に銭湯が見つかりませんでした</Text>
+                <TouchableOpacity style={styles.retryButton} onPress={loadNearbyFacilities}>
+                  <Text style={styles.retryButtonText}>再検索</Text>
+                </TouchableOpacity>
+              </View>
+            }
+          />
+        )}
       </View>
     </Modal>
   );
@@ -232,5 +309,53 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
     color: '#0ea5e9',
+  },
+  refreshButton: {
+    padding: 8,
+    marginLeft: 8,
+  },
+  loadingContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 40,
+  },
+  loadingText: {
+    marginTop: 12,
+    fontSize: 16,
+    color: '#64748b',
+  },
+  errorContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 40,
+    marginHorizontal: 20,
+  },
+  errorText: {
+    fontSize: 16,
+    color: '#ef4444',
+    textAlign: 'center',
+    marginBottom: 16,
+  },
+  retryButton: {
+    backgroundColor: '#0ea5e9',
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 8,
+  },
+  retryButtonText: {
+    color: '#ffffff',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  emptyContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 60,
+  },
+  emptyText: {
+    fontSize: 16,
+    color: '#64748b',
+    textAlign: 'center',
+    marginBottom: 20,
   },
 });
