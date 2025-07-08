@@ -257,7 +257,7 @@ class PlacesService {
 
     // デバッグ: フィルタリングなしで全結果を表示
     console.log('🔍 Places API が返した全ての施設:');
-    places.forEach((place, index) => {
+    places.forEach((place: Place, index: number) => {
       console.log(`${index + 1}. ${place.name} (types: ${place.types.join(', ')}) - ${place.formatted_address}`);
     });
     

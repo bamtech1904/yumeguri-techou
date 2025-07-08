@@ -38,6 +38,7 @@ interface VisitStore {
   addVisit: (visit: Visit) => void;
   updateVisit: (id: string, visit: Partial<Visit>) => void;
   deleteVisit: (id: string) => void;
+  getVisitById: (id: string) => Visit | undefined;
   getVisitsForMonth: (month: string) => Visit[];
   loadVisits: () => Promise<void>;
   saveVisits: () => Promise<void>;
@@ -72,6 +73,11 @@ export const useVisitStore = create<VisitStore>((set, get) => ({
       saveVisitsToStorage(newVisits);
       return { visits: newVisits };
     });
+  },
+
+  getVisitById: (id) => {
+    const { visits } = get();
+    return visits.find((visit) => visit.id === id);
   },
   
   getVisitsForMonth: (month) => {

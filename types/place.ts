@@ -97,3 +97,12 @@ export interface LocationPermissionStatus {
   canAskAgain: boolean;
   status: 'granted' | 'denied' | 'restricted' | 'undetermined';
 }
+
+export interface LocationCoords {
+  latitude: number;
+  longitude: number;
+  accuracy?: number;
+  altitude?: number;
+  heading?: number;
+  speed?: number;
+}

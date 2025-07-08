@@ -1,5 +1,5 @@
 import { Tabs } from 'expo-router';
-import { Calendar, MapPin, User, Settings } from 'lucide-react-native';
+import { Calendar, MapPin, User, Settings, History } from 'lucide-react-native';
 
 export default function TabLayout() {
   return (
@@ -38,6 +38,15 @@ export default function TabLayout() {
           title: 'マップ',
           tabBarIcon: ({ size, color }) => (
             <MapPin size={size} color={color} />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="history"
+        options={{
+          title: '履歴',
+          tabBarIcon: ({ size, color }) => (
+            <History size={size} color={color} />
           ),
         }}
       />
