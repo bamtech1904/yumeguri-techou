@@ -13,9 +13,10 @@ import {
   Platform,
 } from 'react-native';
 import { Calendar, LocaleConfig } from 'react-native-calendars';
-import { Plus, Bath, Star, Clock, MapPin, Search } from 'lucide-react-native';
+import { Plus, Bath, Star, Clock, MapPin, Search, Calendar as CalendarIcon } from 'lucide-react-native';
 import { useVisitStore } from '@/store/visitStore';
 import { format } from 'date-fns';
+import { useRouter } from 'expo-router';
 import FacilitySearch from '@/components/FacilitySearch';
 import { Place } from '@/types/place';
 import DateTimePicker from '@react-native-community/datetimepicker';
@@ -42,8 +43,9 @@ LocaleConfig.locales['ja'] = {
 LocaleConfig.defaultLocale = 'ja';
 
 export default function CalendarScreen() {
+  const router = useRouter();
   const { visits, addVisit, getVisitsForMonth } = useVisitStore();
-  const [selectedDate, setSelectedDate] = useState<string>('');
+  const [selectedDate, setSelectedDate] = useState<string>(new Date().toISOString().split('T')[0]);
   const [modalVisible, setModalVisible] = useState(false);
   const [newVisit, setNewVisit] = useState({
     bathName: '',
@@ -68,16 +70,18 @@ export default function CalendarScreen() {
 
   // Create marked dates for calendar
   const markedDates = visits.reduce((acc, visit) => {
+    const isSelected = visit.date === selectedDate;
     acc[visit.date] = {
       marked: true,
       dotColor: '#0ea5e9',
+      selected: isSelected,
       customStyles: {
         container: {
-          backgroundColor: '#e0f2fe',
+          backgroundColor: isSelected ? '#0ea5e9' : '#e0f2fe',
           borderRadius: 8,
         },
         text: {
-          color: '#0ea5e9',
+          color: isSelected ? '#ffffff' : '#0ea5e9',
           fontWeight: 'bold',
         },
       },
@@ -85,8 +89,28 @@ export default function CalendarScreen() {
     return acc;
   }, {} as any);
 
+  // Add selected date marking even if no visits
+  if (!markedDates[selectedDate]) {
+    markedDates[selectedDate] = {
+      selected: true,
+      customStyles: {
+        container: {
+          backgroundColor: '#0ea5e9',
+          borderRadius: 8,
+        },
+        text: {
+          color: '#ffffff',
+          fontWeight: 'bold',
+        },
+      },
+    };
+  }
+
   const handleDatePress = (day: any) => {
     setSelectedDate(day.dateString);
+  };
+
+  const handleAddNewRecord = () => {
     setSelectedFacility(null);
     // Reset time to default values
     const defaultStartTime = new Date();
@@ -95,6 +119,9 @@ export default function CalendarScreen() {
     defaultEndTime.setHours(20, 0, 0, 0);
     setNewVisit({
       ...newVisit,
+      bathName: '',
+      comment: '',
+      rating: 5,
       startTime: defaultStartTime,
       endTime: defaultEndTime,
       visitTime: `${defaultStartTime.getHours()}:${defaultStartTime.getMinutes().toString().padStart(2, '0')}-${defaultEndTime.getHours()}:${defaultEndTime.getMinutes().toString().padStart(2, '0')}`,
@@ -154,8 +181,8 @@ export default function CalendarScreen() {
     setModalVisible(false);
   };
 
-  const getTodaysVisits = () => {
-    return visits.filter(visit => visit.date === today);
+  const getSelectedDateVisits = () => {
+    return visits.filter(visit => visit.date === selectedDate);
   };
 
   const formatTime = (date: Date) => {
@@ -250,7 +277,7 @@ export default function CalendarScreen() {
     );
   };
 
-  const todaysVisits = getTodaysVisits();
+  const selectedDateVisits = getSelectedDateVisits();
 
   return (
     <SafeAreaView style={styles.container}>
@@ -286,34 +313,68 @@ export default function CalendarScreen() {
           />
         </View>
 
-        <View style={styles.todaySection}>
-          <Text style={styles.sectionTitle}>今日の記録</Text>
-          {todaysVisits.length > 0 ? (
-            todaysVisits.map((visit) => (
-              <View key={visit.id} style={styles.visitCard}>
-                <View style={styles.visitHeader}>
-                  <Bath size={20} color="#0ea5e9" />
-                  <Text style={styles.visitName}>{visit.bathName}</Text>
-                </View>
-                <View style={styles.visitDetails}>
-                  <View style={styles.visitInfo}>
-                    <Clock size={16} color="#64748b" />
-                    <Text style={styles.visitTime}>{visit.visitTime}</Text>
+        <View style={styles.selectedDateSection}>
+          <View style={styles.sectionHeader}>
+            <CalendarIcon size={20} color="#0ea5e9" />
+            <Text style={styles.sectionTitle}>
+              {format(new Date(selectedDate), 'MM月dd日')}の記録
+            </Text>
+          </View>
+          
+          {selectedDateVisits.length > 0 ? (
+            <>
+              {selectedDateVisits.map((visit) => (
+                <TouchableOpacity 
+                  key={visit.id} 
+                  style={styles.visitCard}
+                  onPress={() => router.push(`/visit/${visit.id}` as any)}
+                  activeOpacity={0.7}
+                >
+                  <View style={styles.visitHeader}>
+                    <Bath size={20} color="#0ea5e9" />
+                    <Text style={styles.visitName}>{visit.bathName}</Text>
                   </View>
-                  {renderStars(visit.rating)}
-                </View>
-                {visit.comment && (
-                  <Text style={styles.visitComment}>{visit.comment}</Text>
-                )}
-              </View>
-            ))
+                  <View style={styles.visitDetails}>
+                    <View style={styles.visitInfo}>
+                      <Clock size={16} color="#64748b" />
+                      <Text style={styles.visitTime}>{visit.visitTime}</Text>
+                    </View>
+                    {renderStars(visit.rating)}
+                  </View>
+                  {visit.comment && (
+                    <Text style={styles.visitComment}>{visit.comment}</Text>
+                  )}
+                </TouchableOpacity>
+              ))}
+              
+              <TouchableOpacity
+                style={styles.addMoreButton}
+                onPress={handleAddNewRecord}
+              >
+                <Plus size={20} color="#0ea5e9" />
+                <Text style={styles.addMoreButtonText}>追加登録する</Text>
+              </TouchableOpacity>
+            </>
           ) : (
-            <Text style={styles.noVisits}>今日はまだ記録がありません</Text>
+            <View style={styles.noRecordsContainer}>
+              <Bath size={48} color="#cbd5e1" />
+              <Text style={styles.noRecordsTitle}>記録がありません</Text>
+              <Text style={styles.noRecordsSubtitle}>
+                この日の銭湯訪問を記録してみましょう
+              </Text>
+              <TouchableOpacity
+                style={styles.newRecordButton}
+                onPress={handleAddNewRecord}
+              >
+                <Plus size={20} color="#ffffff" />
+                <Text style={styles.newRecordButtonText}>新規登録する</Text>
+              </TouchableOpacity>
+            </View>
           )}
         </View>
 
         <View style={styles.statsSection}>
-          <Text style={styles.sectionTitle}>統計</Text>
+          <Text style={[styles.sectionTitle, { marginBottom: 12 }]}>統計</Text>
           <View style={styles.statsGrid}>
             <View style={styles.statCard}>
               <Text style={styles.statValue}>{visits.length}</Text>
@@ -337,22 +398,7 @@ export default function CalendarScreen() {
 
       <TouchableOpacity
         style={styles.fab}
-        onPress={() => {
-          setSelectedDate(today);
-          setSelectedFacility(null);
-          // Reset time to default values
-          const defaultStartTime = new Date();
-          defaultStartTime.setHours(18, 0, 0, 0);
-          const defaultEndTime = new Date();
-          defaultEndTime.setHours(20, 0, 0, 0);
-          setNewVisit({
-            ...newVisit,
-            startTime: defaultStartTime,
-            endTime: defaultEndTime,
-            visitTime: `${defaultStartTime.getHours()}:${defaultStartTime.getMinutes().toString().padStart(2, '0')}-${defaultEndTime.getHours()}:${defaultEndTime.getMinutes().toString().padStart(2, '0')}`,
-          });
-          setModalVisible(true);
-        }}
+        onPress={handleAddNewRecord}
       >
         <Plus size={24} color="#ffffff" />
       </TouchableOpacity>
@@ -449,6 +495,8 @@ export default function CalendarScreen() {
                       display="spinner"
                       onChange={handleTempStartTimeChange}
                       style={styles.timePicker}
+                      themeVariant="light"
+                      textColor="#1e293b"
                     />
                     {timeValidationError && (
                       <View style={styles.errorContainer}>
@@ -487,6 +535,8 @@ export default function CalendarScreen() {
                       display="spinner"
                       onChange={handleTempEndTimeChange}
                       style={styles.timePicker}
+                      themeVariant="light"
+                      textColor="#1e293b"
                     />
                     {timeValidationError && (
                       <View style={styles.errorContainer}>
@@ -597,15 +647,20 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
     elevation: 3,
   },
-  todaySection: {
+  selectedDateSection: {
     marginHorizontal: 20,
     marginBottom: 24,
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 16,
+    gap: 8,
   },
   sectionTitle: {
     fontSize: 18,
     fontWeight: '600',
     color: '#1e293b',
-    marginBottom: 12,
   },
   visitCard: {
     backgroundColor: '#ffffff',
@@ -649,13 +704,62 @@ const styles = StyleSheet.create({
     color: '#64748b',
     fontStyle: 'italic',
   },
-  noVisits: {
-    textAlign: 'center',
-    color: '#64748b',
-    fontSize: 16,
-    padding: 32,
+  noRecordsContainer: {
+    alignItems: 'center',
+    padding: 40,
     backgroundColor: '#ffffff',
+    borderRadius: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  noRecordsTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#64748b',
+    marginTop: 16,
+    marginBottom: 8,
+  },
+  noRecordsSubtitle: {
+    fontSize: 14,
+    color: '#94a3b8',
+    textAlign: 'center',
+    marginBottom: 24,
+    lineHeight: 20,
+  },
+  newRecordButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#0ea5e9',
     borderRadius: 12,
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    gap: 8,
+  },
+  newRecordButtonText: {
+    color: '#ffffff',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  addMoreButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#f0f9ff',
+    borderRadius: 12,
+    paddingVertical: 16,
+    marginTop: 12,
+    borderWidth: 2,
+    borderColor: '#0ea5e9',
+    borderStyle: 'dashed',
+    gap: 8,
+  },
+  addMoreButtonText: {
+    color: '#0ea5e9',
+    fontSize: 16,
+    fontWeight: '600',
   },
   statsSection: {
     marginHorizontal: 20,
@@ -872,11 +976,19 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
   },
   timePickerWrapper: {
-    backgroundColor: '#f8fafc',
-    borderRadius: 8,
+    backgroundColor: '#ffffff',
+    borderRadius: 12,
     padding: 16,
     marginTop: 8,
     alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    overflow: 'hidden',
   },
   timePickerLabel: {
     fontSize: 14,
@@ -886,6 +998,7 @@ const styles = StyleSheet.create({
   },
   timePicker: {
     width: '100%',
+    maxWidth: '100%',
     height: 120,
   },
   timePickerButtonsRow: {

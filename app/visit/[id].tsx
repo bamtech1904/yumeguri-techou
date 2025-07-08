@@ -363,6 +363,9 @@ export default function VisitDetailScreen() {
                     is24Hour={true}
                     display="spinner"
                     onChange={handleTempStartTimeChange}
+                    themeVariant="light"
+                    textColor="#1e293b"
+                    style={styles.timePicker}
                   />
                   {timeValidationError && (
                     <Text style={styles.errorText}>{timeValidationError}</Text>
@@ -395,6 +398,9 @@ export default function VisitDetailScreen() {
                     is24Hour={true}
                     display="spinner"
                     onChange={handleTempEndTimeChange}
+                    themeVariant="light"
+                    textColor="#1e293b"
+                    style={styles.timePicker}
                   />
                   {timeValidationError && (
                     <Text style={styles.errorText}>{timeValidationError}</Text>
@@ -686,10 +692,24 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
   timePickerWrapper: {
-    backgroundColor: '#f8fafc',
-    borderRadius: 8,
+    backgroundColor: '#ffffff',
+    borderRadius: 12,
     padding: 16,
     marginTop: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    overflow: 'hidden',
+    alignItems: 'center',
+  },
+  timePicker: {
+    width: '100%',
+    maxWidth: '100%',
+    height: 120,
   },
   timePickerButtonsRow: {
     flexDirection: 'row',
