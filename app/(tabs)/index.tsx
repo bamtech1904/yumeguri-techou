@@ -9,6 +9,8 @@ import {
   Modal,
   TextInput,
   Alert,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native';
 import { Calendar, LocaleConfig } from 'react-native-calendars';
 import { Plus, Bath, Star, Clock, MapPin, Search } from 'lucide-react-native';
@@ -57,6 +59,7 @@ export default function CalendarScreen() {
   const [tempStartTime, setTempStartTime] = useState(new Date());
   const [tempEndTime, setTempEndTime] = useState(new Date());
   const [timeValidationError, setTimeValidationError] = useState<string | null>(null);
+  const [scrollViewRef, setScrollViewRef] = useState<ScrollView | null>(null);
 
   const today = new Date().toISOString().split('T')[0];
   const currentMonth = new Date().toISOString().slice(0, 7);
@@ -220,6 +223,13 @@ export default function CalendarScreen() {
     setActiveTimePicker(activeTimePicker === type ? null : type);
   };
 
+  const handleCommentFocus = () => {
+    // コメント入力時にScrollViewを最下部にスクロール
+    setTimeout(() => {
+      scrollViewRef?.scrollToEnd({ animated: true });
+    }, 100);
+  };
+
   const renderStars = (rating: number, onPress?: (star: number) => void) => {
     return (
       <View style={styles.starsContainer}>
@@ -353,52 +363,62 @@ export default function CalendarScreen() {
         visible={modalVisible && !facilitySearchVisible}
         onRequestClose={() => setModalVisible(false)}
       >
-        <View style={styles.modalOverlay}>
+        <KeyboardAvoidingView 
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={styles.modalOverlay}
+        >
           <View style={styles.modalContent}>
             <Text style={styles.modalTitle}>
               {selectedDate ? format(new Date(selectedDate), 'yyyy年MM月dd日') : ''}の記録
             </Text>
 
-            <View style={styles.inputContainer}>
-              <Text style={styles.inputLabel}>銭湯名</Text>
-              <View style={styles.facilityInputContainer}>
-                <TextInput
-                  style={[styles.textInput, styles.facilityInput]}
-                  value={newVisit.bathName}
-                  onChangeText={(text) => setNewVisit({...newVisit, bathName: text})}
-                  placeholder="例: 山田湯"
-                />
-                <TouchableOpacity
-                  style={styles.searchButton}
-                  onPress={() => setFacilitySearchVisible(true)}
-                >
-                  <Search size={20} color="#0ea5e9" />
-                </TouchableOpacity>
-              </View>
-              {selectedFacility && (
-                <View style={styles.selectedFacilityContainer}>
-                  <View style={styles.selectedFacilityHeader}>
-                    <MapPin size={16} color="#0ea5e9" />
-                    <Text style={styles.selectedFacilityName}>{selectedFacility.name}</Text>
-                  </View>
-                  <Text style={styles.selectedFacilityAddress}>{selectedFacility.formatted_address}</Text>
-                  {selectedFacility.distance && (
-                    <Text style={styles.selectedFacilityDistance}>距離: {selectedFacility.distance}</Text>
-                  )}
-                  {selectedFacility.rating && (
-                    <View style={styles.selectedFacilityRating}>
-                      <Text style={styles.selectedFacilityRatingText}>評価: {selectedFacility.rating.toFixed(1)}</Text>
-                      {renderStars(selectedFacility.rating)}
-                    </View>
-                  )}
+            <ScrollView 
+              ref={setScrollViewRef}
+              style={styles.modalFormContainer}
+              keyboardShouldPersistTaps="handled"
+              showsVerticalScrollIndicator={false}
+              contentContainerStyle={{ paddingBottom: 30 }}
+            >
+              <View style={styles.inputContainer}>
+                <Text style={styles.inputLabel}>銭湯名</Text>
+                <View style={styles.facilityInputContainer}>
+                  <TextInput
+                    style={[styles.textInput, styles.facilityInput]}
+                    value={newVisit.bathName}
+                    onChangeText={(text) => setNewVisit({...newVisit, bathName: text})}
+                    placeholder="例: 山田湯"
+                  />
+                  <TouchableOpacity
+                    style={styles.searchButton}
+                    onPress={() => setFacilitySearchVisible(true)}
+                  >
+                    <Search size={20} color="#0ea5e9" />
+                  </TouchableOpacity>
                 </View>
-              )}
-            </View>
+                {selectedFacility && (
+                  <View style={styles.selectedFacilityContainer}>
+                    <View style={styles.selectedFacilityHeader}>
+                      <MapPin size={16} color="#0ea5e9" />
+                      <Text style={styles.selectedFacilityName}>{selectedFacility.name}</Text>
+                    </View>
+                    <Text style={styles.selectedFacilityAddress}>{selectedFacility.formatted_address}</Text>
+                    {selectedFacility.distance && (
+                      <Text style={styles.selectedFacilityDistance}>距離: {selectedFacility.distance}</Text>
+                    )}
+                    {selectedFacility.rating && (
+                      <View style={styles.selectedFacilityRating}>
+                        <Text style={styles.selectedFacilityRatingText}>評価: {selectedFacility.rating.toFixed(1)}</Text>
+                        {renderStars(selectedFacility.rating)}
+                      </View>
+                    )}
+                  </View>
+                )}
+              </View>
 
-            <View style={styles.inputContainer}>
-              <Text style={styles.inputLabel}>訪問時間</Text>
-              <View style={styles.timeDisplayContainer}>
-                <View style={styles.timeButtonsRow}>
+              <View style={styles.inputContainer}>
+                <Text style={styles.inputLabel}>訪問時間</Text>
+                <View style={styles.timeDisplayContainer}>
+                  <View style={styles.timeButtonsRow}>
                   <TouchableOpacity
                     style={[styles.timePickerButton, { flex: 1 }]}
                     onPress={() => handleTimePickerOpen('start')}
@@ -498,39 +518,41 @@ export default function CalendarScreen() {
               </View>
             </View>
 
-            <View style={styles.inputContainer}>
-              <Text style={styles.inputLabel}>評価</Text>
-              {renderStars(newVisit.rating, (star) => setNewVisit({...newVisit, rating: star}))}
-            </View>
+              <View style={styles.inputContainer}>
+                <Text style={styles.inputLabel}>評価</Text>
+                {renderStars(newVisit.rating, (star) => setNewVisit({...newVisit, rating: star}))}
+              </View>
 
-            <View style={styles.inputContainer}>
-              <Text style={styles.inputLabel}>コメント</Text>
-              <TextInput
-                style={[styles.textInput, styles.commentInput]}
-                value={newVisit.comment}
-                onChangeText={(text) => setNewVisit({...newVisit, comment: text})}
-                placeholder="感想を入力..."
-                multiline
-                numberOfLines={3}
-              />
-            </View>
+              <View style={styles.inputContainer}>
+                <Text style={styles.inputLabel}>コメント</Text>
+                <TextInput
+                  style={[styles.textInput, styles.commentInput]}
+                  value={newVisit.comment}
+                  onChangeText={(text) => setNewVisit({...newVisit, comment: text})}
+                  onFocus={handleCommentFocus}
+                  placeholder="感想を入力..."
+                  multiline
+                  numberOfLines={5}
+                />
+              </View>
 
-            <View style={styles.modalButtons}>
-              <TouchableOpacity
-                style={[styles.button, styles.cancelButton]}
-                onPress={() => setModalVisible(false)}
-              >
-                <Text style={styles.cancelButtonText}>キャンセル</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.button, styles.saveButton]}
-                onPress={handleAddVisit}
-              >
-                <Text style={styles.saveButtonText}>保存</Text>
-              </TouchableOpacity>
-            </View>
+              <View style={styles.modalButtons}>
+                <TouchableOpacity
+                  style={[styles.button, styles.cancelButton]}
+                  onPress={() => setModalVisible(false)}
+                >
+                  <Text style={styles.cancelButtonText}>キャンセル</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.button, styles.saveButton]}
+                  onPress={handleAddVisit}
+                >
+                  <Text style={styles.saveButtonText}>保存</Text>
+                </TouchableOpacity>
+              </View>
+            </ScrollView>
           </View>
-        </View>
+        </KeyboardAvoidingView>
       </Modal>
 
       <FacilitySearch
@@ -700,6 +722,11 @@ const styles = StyleSheet.create({
     margin: 20,
     width: '90%',
     maxWidth: 400,
+    maxHeight: '85%',
+    flex: 1,
+  },
+  modalFormContainer: {
+    flex: 1,
   },
   modalTitle: {
     fontSize: 20,
@@ -726,7 +753,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#ffffff',
   },
   commentInput: {
-    height: 80,
+    height: 120,
     textAlignVertical: 'top',
   },
   modalButtons: {
