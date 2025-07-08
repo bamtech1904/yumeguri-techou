@@ -18,6 +18,7 @@ import { useVisitStore } from '@/store/visitStore';
 import { format } from 'date-fns';
 import { useRouter } from 'expo-router';
 import FacilitySearch from '@/components/FacilitySearch';
+import PhotoPicker from '@/components/PhotoPicker';
 import { Place } from '@/types/place';
 import DateTimePicker from '@react-native-community/datetimepicker';
 
@@ -54,6 +55,7 @@ export default function CalendarScreen() {
     endTime: new Date(),
     rating: 5,
     comment: '',
+    photos: [] as string[],
   });
   const [facilitySearchVisible, setFacilitySearchVisible] = useState(false);
   const [selectedFacility, setSelectedFacility] = useState<FacilityWithDistance | null>(null);
@@ -122,6 +124,7 @@ export default function CalendarScreen() {
       bathName: '',
       comment: '',
       rating: 5,
+      photos: [],
       startTime: defaultStartTime,
       endTime: defaultEndTime,
       visitTime: `${defaultStartTime.getHours()}:${defaultStartTime.getMinutes().toString().padStart(2, '0')}-${defaultEndTime.getHours()}:${defaultEndTime.getMinutes().toString().padStart(2, '0')}`,
@@ -151,6 +154,7 @@ export default function CalendarScreen() {
       visitTime: newVisit.visitTime,
       rating: newVisit.rating,
       comment: newVisit.comment,
+      photos: newVisit.photos,
       createdAt: new Date().toISOString(),
       // Add facility data if available
       ...(selectedFacility && {
@@ -176,6 +180,7 @@ export default function CalendarScreen() {
       endTime: new Date(),
       rating: 5,
       comment: '',
+      photos: [],
     });
     setSelectedFacility(null);
     setModalVisible(false);
@@ -255,6 +260,10 @@ export default function CalendarScreen() {
     setTimeout(() => {
       scrollViewRef?.scrollToEnd({ animated: true });
     }, 100);
+  };
+
+  const handlePhotosChange = (photos: string[]) => {
+    setNewVisit({...newVisit, photos});
   };
 
   const renderStars = (rating: number, onPress?: (star: number) => void) => {
@@ -409,11 +418,11 @@ export default function CalendarScreen() {
         visible={modalVisible && !facilitySearchVisible}
         onRequestClose={() => setModalVisible(false)}
       >
-        <KeyboardAvoidingView 
-          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-          style={styles.modalOverlay}
-        >
-          <View style={styles.modalContent}>
+        <View style={styles.modalOverlay}>
+          <KeyboardAvoidingView 
+            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+            style={styles.modalContent}
+          >
             <Text style={styles.modalTitle}>
               {selectedDate ? format(new Date(selectedDate), 'yyyy年MM月dd日') : ''}の記録
             </Text>
@@ -586,6 +595,12 @@ export default function CalendarScreen() {
                 />
               </View>
 
+              <PhotoPicker
+                photos={newVisit.photos}
+                onPhotosChange={handlePhotosChange}
+                maxPhotos={5}
+              />
+
               <View style={styles.modalButtons}>
                 <TouchableOpacity
                   style={[styles.button, styles.cancelButton]}
@@ -601,8 +616,8 @@ export default function CalendarScreen() {
                 </TouchableOpacity>
               </View>
             </ScrollView>
-          </View>
-        </KeyboardAvoidingView>
+          </KeyboardAvoidingView>
+        </View>
       </Modal>
 
       <FacilitySearch

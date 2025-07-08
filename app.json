@@ -11,13 +11,18 @@
     "ios": {
       "supportsTablet": true,
       "infoPlist": {
-        "NSLocationWhenInUseUsageDescription": "湯めぐり手帳が周辺の銭湯を検索するために位置情報が必要です。"
+        "NSLocationWhenInUseUsageDescription": "湯めぐり手帳が周辺の銭湯を検索するために位置情報が必要です。",
+        "NSCameraUsageDescription": "湯めぐり手帳が写真を撮影するためにカメラへのアクセスが必要です。",
+        "NSPhotoLibraryUsageDescription": "湯めぐり手帳が写真を選択するためにフォトライブラリへのアクセスが必要です。"
       }
     },
     "android": {
       "permissions": [
         "ACCESS_COARSE_LOCATION",
-        "ACCESS_FINE_LOCATION"
+        "ACCESS_FINE_LOCATION",
+        "CAMERA",
+        "READ_EXTERNAL_STORAGE",
+        "WRITE_EXTERNAL_STORAGE"
       ]
     },
     "web": {
@@ -29,7 +34,8 @@
       "expo-router", 
       "expo-font", 
       "expo-web-browser",
-      "expo-location"
+      "expo-location",
+      "expo-image-picker"
     ],
     "experiments": {
       "typedRoutes": true

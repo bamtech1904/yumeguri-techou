@@ -28,6 +28,8 @@ import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useVisitStore, Visit } from '@/store/visitStore';
 import { format } from 'date-fns';
 import FacilitySearch from '@/components/FacilitySearch';
+import PhotoPicker from '@/components/PhotoPicker';
+import PhotoGallery from '@/components/PhotoGallery';
 import { Place } from '@/types/place';
 import DateTimePicker from '@react-native-community/datetimepicker';
 
@@ -174,6 +176,10 @@ export default function VisitDetailScreen() {
     setActiveTimePicker(activeTimePicker === type ? null : type);
   };
 
+  const handlePhotosChange = (photos: string[]) => {
+    setEditedVisit(prev => ({ ...prev, photos }));
+  };
+
   const renderStars = (rating: number, onPress?: (star: number) => void) => {
     return (
       <View style={styles.starsContainer}>
@@ -300,6 +306,14 @@ export default function VisitDetailScreen() {
                   {renderStars(visit.ratings.comfort)}
                 </View>
               </View>
+            )}
+
+            {visit.photos && visit.photos.length > 0 && (
+              <PhotoGallery
+                photos={visit.photos}
+                title="写真"
+                showTitle={true}
+              />
             )}
           </View>
         ) : (
@@ -445,6 +459,12 @@ export default function VisitDetailScreen() {
                 numberOfLines={5}
               />
             </View>
+
+            <PhotoPicker
+              photos={editedVisit.photos || []}
+              onPhotosChange={handlePhotosChange}
+              maxPhotos={5}
+            />
 
             <View style={styles.editButtons}>
               <TouchableOpacity
