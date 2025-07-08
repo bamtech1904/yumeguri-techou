@@ -54,6 +54,9 @@ export default function CalendarScreen() {
   const [facilitySearchVisible, setFacilitySearchVisible] = useState(false);
   const [selectedFacility, setSelectedFacility] = useState<FacilityWithDistance | null>(null);
   const [activeTimePicker, setActiveTimePicker] = useState<'start' | 'end' | null>(null);
+  const [tempStartTime, setTempStartTime] = useState(new Date());
+  const [tempEndTime, setTempEndTime] = useState(new Date());
+  const [timeValidationError, setTimeValidationError] = useState<string | null>(null);
 
   const today = new Date().toISOString().split('T')[0];
   const currentMonth = new Date().toISOString().slice(0, 7);
@@ -156,26 +159,65 @@ export default function CalendarScreen() {
     return `${date.getHours()}:${date.getMinutes().toString().padStart(2, '0')}`;
   };
 
-  const handleStartTimeChange = (event: any, selectedTime?: Date) => {
+  const validateTimeRange = (start: Date, end: Date) => {
+    return start.getTime() < end.getTime();
+  };
+
+
+  const handleTempStartTimeChange = (event: any, selectedTime?: Date) => {
     if (selectedTime) {
-      const updatedVisit = {
-        ...newVisit,
-        startTime: selectedTime,
-        visitTime: `${formatTime(selectedTime)}-${formatTime(newVisit.endTime)}`,
-      };
-      setNewVisit(updatedVisit);
+      setTempStartTime(selectedTime);
+      // リアルタイムバリデーション
+      const errorMessage = activeTimePicker === 'start' ? 
+        (validateTimeRange(selectedTime, newVisit.endTime) ? null : `開始時間は終了時間（${formatTime(newVisit.endTime)}）より前に設定してください`) :
+        null;
+      setTimeValidationError(errorMessage);
     }
   };
 
-  const handleEndTimeChange = (event: any, selectedTime?: Date) => {
+  const handleTempEndTimeChange = (event: any, selectedTime?: Date) => {
     if (selectedTime) {
+      setTempEndTime(selectedTime);
+      // リアルタイムバリデーション
+      const errorMessage = activeTimePicker === 'end' ?
+        (validateTimeRange(newVisit.startTime, selectedTime) ? null : `終了時間は開始時間（${formatTime(newVisit.startTime)}）より後に設定してください`) :
+        null;
+      setTimeValidationError(errorMessage);
+    }
+  };
+
+  const handleTimeConfirm = () => {
+    if (activeTimePicker === 'start') {
       const updatedVisit = {
         ...newVisit,
-        endTime: selectedTime,
-        visitTime: `${formatTime(newVisit.startTime)}-${formatTime(selectedTime)}`,
+        startTime: tempStartTime,
+        visitTime: `${formatTime(tempStartTime)}-${formatTime(newVisit.endTime)}`,
+      };
+      setNewVisit(updatedVisit);
+    } else if (activeTimePicker === 'end') {
+      const updatedVisit = {
+        ...newVisit,
+        endTime: tempEndTime,
+        visitTime: `${formatTime(newVisit.startTime)}-${formatTime(tempEndTime)}`,
       };
       setNewVisit(updatedVisit);
     }
+    setActiveTimePicker(null);
+  };
+
+  const handleTimeCancel = () => {
+    setActiveTimePicker(null);
+    setTimeValidationError(null);
+  };
+
+  const handleTimePickerOpen = (type: 'start' | 'end') => {
+    if (type === 'start') {
+      setTempStartTime(newVisit.startTime);
+    } else {
+      setTempEndTime(newVisit.endTime);
+    }
+    setTimeValidationError(null);
+    setActiveTimePicker(activeTimePicker === type ? null : type);
   };
 
   const renderStars = (rating: number, onPress?: (star: number) => void) => {
@@ -359,7 +401,7 @@ export default function CalendarScreen() {
                 <View style={styles.timeButtonsRow}>
                   <TouchableOpacity
                     style={[styles.timePickerButton, { flex: 1 }]}
-                    onPress={() => setActiveTimePicker(activeTimePicker === 'start' ? null : 'start')}
+                    onPress={() => handleTimePickerOpen('start')}
                   >
                     <Clock size={16} color="#0ea5e9" />
                     <Text style={styles.timePickerButtonText}>
@@ -369,7 +411,7 @@ export default function CalendarScreen() {
                   <Text style={styles.timeSeparator}>-</Text>
                   <TouchableOpacity
                     style={[styles.timePickerButton, { flex: 1 }]}
-                    onPress={() => setActiveTimePicker(activeTimePicker === 'end' ? null : 'end')}
+                    onPress={() => handleTimePickerOpen('end')}
                   >
                     <Clock size={16} color="#0ea5e9" />
                     <Text style={styles.timePickerButtonText}>
@@ -381,26 +423,76 @@ export default function CalendarScreen() {
                   <View style={styles.timePickerWrapper}>
                     <Text style={styles.timePickerLabel}>開始時間を選択</Text>
                     <DateTimePicker
-                      value={newVisit.startTime}
+                      value={tempStartTime}
                       mode="time"
                       is24Hour={true}
                       display="spinner"
-                      onChange={handleStartTimeChange}
+                      onChange={handleTempStartTimeChange}
                       style={styles.timePicker}
                     />
+                    {timeValidationError && (
+                      <View style={styles.errorContainer}>
+                        <Text style={styles.errorText}>{timeValidationError}</Text>
+                      </View>
+                    )}
+                    <View style={styles.timePickerButtonsRow}>
+                      <TouchableOpacity
+                        style={[styles.timePickerActionButton, styles.timePickerCancelButton]}
+                        onPress={handleTimeCancel}
+                      >
+                        <Text style={styles.timePickerCancelButtonText}>キャンセル</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={[
+                          styles.timePickerActionButton, 
+                          timeValidationError ? styles.timePickerConfirmButtonDisabled : styles.timePickerConfirmButton
+                        ]}
+                        onPress={handleTimeConfirm}
+                        disabled={!!timeValidationError}
+                      >
+                        <Text style={[
+                          timeValidationError ? styles.timePickerConfirmButtonTextDisabled : styles.timePickerConfirmButtonText
+                        ]}>決定</Text>
+                      </TouchableOpacity>
+                    </View>
                   </View>
                 )}
                 {activeTimePicker === 'end' && (
                   <View style={styles.timePickerWrapper}>
                     <Text style={styles.timePickerLabel}>終了時間を選択</Text>
                     <DateTimePicker
-                      value={newVisit.endTime}
+                      value={tempEndTime}
                       mode="time"
                       is24Hour={true}
                       display="spinner"
-                      onChange={handleEndTimeChange}
+                      onChange={handleTempEndTimeChange}
                       style={styles.timePicker}
                     />
+                    {timeValidationError && (
+                      <View style={styles.errorContainer}>
+                        <Text style={styles.errorText}>{timeValidationError}</Text>
+                      </View>
+                    )}
+                    <View style={styles.timePickerButtonsRow}>
+                      <TouchableOpacity
+                        style={[styles.timePickerActionButton, styles.timePickerCancelButton]}
+                        onPress={handleTimeCancel}
+                      >
+                        <Text style={styles.timePickerCancelButtonText}>キャンセル</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={[
+                          styles.timePickerActionButton, 
+                          timeValidationError ? styles.timePickerConfirmButtonDisabled : styles.timePickerConfirmButton
+                        ]}
+                        onPress={handleTimeConfirm}
+                        disabled={!!timeValidationError}
+                      >
+                        <Text style={[
+                          timeValidationError ? styles.timePickerConfirmButtonTextDisabled : styles.timePickerConfirmButtonText
+                        ]}>決定</Text>
+                      </TouchableOpacity>
+                    </View>
                   </View>
                 )}
               </View>
@@ -768,5 +860,59 @@ const styles = StyleSheet.create({
   timePicker: {
     width: '100%',
     height: 120,
+  },
+  timePickerButtonsRow: {
+    flexDirection: 'row',
+    gap: 12,
+    marginTop: 16,
+    width: '100%',
+  },
+  timePickerActionButton: {
+    flex: 1,
+    padding: 12,
+    borderRadius: 8,
+    alignItems: 'center',
+    minHeight: 44,
+  },
+  timePickerCancelButton: {
+    backgroundColor: '#f3f4f6',
+    borderWidth: 1,
+    borderColor: '#d1d5db',
+  },
+  timePickerConfirmButton: {
+    backgroundColor: '#0ea5e9',
+  },
+  timePickerCancelButtonText: {
+    color: '#6b7280',
+    fontSize: 16,
+    fontWeight: '500',
+  },
+  timePickerConfirmButtonText: {
+    color: '#ffffff',
+    fontSize: 16,
+    fontWeight: '500',
+  },
+  timePickerConfirmButtonDisabled: {
+    backgroundColor: '#9ca3af',
+  },
+  timePickerConfirmButtonTextDisabled: {
+    color: '#ffffff',
+    fontSize: 16,
+    fontWeight: '500',
+    opacity: 0.8,
+  },
+  errorContainer: {
+    backgroundColor: '#fef2f2',
+    borderRadius: 6,
+    padding: 10,
+    marginTop: 8,
+    borderWidth: 1,
+    borderColor: '#fecaca',
+  },
+  errorText: {
+    color: '#dc2626',
+    fontSize: 13,
+    fontWeight: '500',
+    textAlign: 'center',
   },
 });
