@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import {
   View,
   Text,
@@ -16,6 +16,7 @@ import { useVisitStore } from '@/store/visitStore';
 import { format } from 'date-fns';
 import FacilitySearch from '@/components/FacilitySearch';
 import { Place } from '@/types/place';
+import DateTimePicker from '@react-native-community/datetimepicker';
 
 interface FacilityWithDistance extends Place {
   distance?: string;
@@ -45,11 +46,14 @@ export default function CalendarScreen() {
   const [newVisit, setNewVisit] = useState({
     bathName: '',
     visitTime: '',
+    startTime: new Date(),
+    endTime: new Date(),
     rating: 5,
     comment: '',
   });
   const [facilitySearchVisible, setFacilitySearchVisible] = useState(false);
   const [selectedFacility, setSelectedFacility] = useState<FacilityWithDistance | null>(null);
+  const [activeTimePicker, setActiveTimePicker] = useState<'start' | 'end' | null>(null);
 
   const today = new Date().toISOString().split('T')[0];
   const currentMonth = new Date().toISOString().slice(0, 7);
@@ -78,6 +82,17 @@ export default function CalendarScreen() {
   const handleDatePress = (day: any) => {
     setSelectedDate(day.dateString);
     setSelectedFacility(null);
+    // Reset time to default values
+    const defaultStartTime = new Date();
+    defaultStartTime.setHours(18, 0, 0, 0);
+    const defaultEndTime = new Date();
+    defaultEndTime.setHours(20, 0, 0, 0);
+    setNewVisit({
+      ...newVisit,
+      startTime: defaultStartTime,
+      endTime: defaultEndTime,
+      visitTime: `${defaultStartTime.getHours()}:${defaultStartTime.getMinutes().toString().padStart(2, '0')}-${defaultEndTime.getHours()}:${defaultEndTime.getMinutes().toString().padStart(2, '0')}`,
+    });
     setModalVisible(true);
   };
 
@@ -124,6 +139,8 @@ export default function CalendarScreen() {
     setNewVisit({
       bathName: '',
       visitTime: '',
+      startTime: new Date(),
+      endTime: new Date(),
       rating: 5,
       comment: '',
     });
@@ -133,6 +150,32 @@ export default function CalendarScreen() {
 
   const getTodaysVisits = () => {
     return visits.filter(visit => visit.date === today);
+  };
+
+  const formatTime = (date: Date) => {
+    return `${date.getHours()}:${date.getMinutes().toString().padStart(2, '0')}`;
+  };
+
+  const handleStartTimeChange = (event: any, selectedTime?: Date) => {
+    if (selectedTime) {
+      const updatedVisit = {
+        ...newVisit,
+        startTime: selectedTime,
+        visitTime: `${formatTime(selectedTime)}-${formatTime(newVisit.endTime)}`,
+      };
+      setNewVisit(updatedVisit);
+    }
+  };
+
+  const handleEndTimeChange = (event: any, selectedTime?: Date) => {
+    if (selectedTime) {
+      const updatedVisit = {
+        ...newVisit,
+        endTime: selectedTime,
+        visitTime: `${formatTime(newVisit.startTime)}-${formatTime(selectedTime)}`,
+      };
+      setNewVisit(updatedVisit);
+    }
   };
 
   const renderStars = (rating: number, onPress?: (star: number) => void) => {
@@ -245,6 +288,17 @@ export default function CalendarScreen() {
         onPress={() => {
           setSelectedDate(today);
           setSelectedFacility(null);
+          // Reset time to default values
+          const defaultStartTime = new Date();
+          defaultStartTime.setHours(18, 0, 0, 0);
+          const defaultEndTime = new Date();
+          defaultEndTime.setHours(20, 0, 0, 0);
+          setNewVisit({
+            ...newVisit,
+            startTime: defaultStartTime,
+            endTime: defaultEndTime,
+            visitTime: `${defaultStartTime.getHours()}:${defaultStartTime.getMinutes().toString().padStart(2, '0')}-${defaultEndTime.getHours()}:${defaultEndTime.getMinutes().toString().padStart(2, '0')}`,
+          });
           setModalVisible(true);
         }}
       >
@@ -301,12 +355,55 @@ export default function CalendarScreen() {
 
             <View style={styles.inputContainer}>
               <Text style={styles.inputLabel}>訪問時間</Text>
-              <TextInput
-                style={styles.textInput}
-                value={newVisit.visitTime}
-                onChangeText={(text) => setNewVisit({...newVisit, visitTime: text})}
-                placeholder="例: 18:00-20:00"
-              />
+              <View style={styles.timeDisplayContainer}>
+                <View style={styles.timeButtonsRow}>
+                  <TouchableOpacity
+                    style={[styles.timePickerButton, { flex: 1 }]}
+                    onPress={() => setActiveTimePicker(activeTimePicker === 'start' ? null : 'start')}
+                  >
+                    <Clock size={16} color="#0ea5e9" />
+                    <Text style={styles.timePickerButtonText}>
+                      開始: {formatTime(newVisit.startTime)}
+                    </Text>
+                  </TouchableOpacity>
+                  <Text style={styles.timeSeparator}>-</Text>
+                  <TouchableOpacity
+                    style={[styles.timePickerButton, { flex: 1 }]}
+                    onPress={() => setActiveTimePicker(activeTimePicker === 'end' ? null : 'end')}
+                  >
+                    <Clock size={16} color="#0ea5e9" />
+                    <Text style={styles.timePickerButtonText}>
+                      終了: {formatTime(newVisit.endTime)}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+                {activeTimePicker === 'start' && (
+                  <View style={styles.timePickerWrapper}>
+                    <Text style={styles.timePickerLabel}>開始時間を選択</Text>
+                    <DateTimePicker
+                      value={newVisit.startTime}
+                      mode="time"
+                      is24Hour={true}
+                      display="spinner"
+                      onChange={handleStartTimeChange}
+                      style={styles.timePicker}
+                    />
+                  </View>
+                )}
+                {activeTimePicker === 'end' && (
+                  <View style={styles.timePickerWrapper}>
+                    <Text style={styles.timePickerLabel}>終了時間を選択</Text>
+                    <DateTimePicker
+                      value={newVisit.endTime}
+                      mode="time"
+                      is24Hour={true}
+                      display="spinner"
+                      onChange={handleEndTimeChange}
+                      style={styles.timePicker}
+                    />
+                  </View>
+                )}
+              </View>
             </View>
 
             <View style={styles.inputContainer}>
@@ -349,6 +446,7 @@ export default function CalendarScreen() {
         onClose={() => setFacilitySearchVisible(false)}
         onSelect={handleFacilitySelect}
       />
+
     </SafeAreaView>
   );
 }
@@ -622,5 +720,53 @@ const styles = StyleSheet.create({
   selectedFacilityRatingText: {
     fontSize: 14,
     color: '#64748b',
+  },
+  timeDisplayContainer: {
+    width: '100%',
+  },
+  timeButtonsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    marginBottom: 8,
+  },
+  timePickerButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 12,
+    backgroundColor: '#f0f9ff',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#0ea5e9',
+    gap: 8,
+    minHeight: 44,
+  },
+  timePickerButtonText: {
+    fontSize: 14,
+    color: '#1e293b',
+    fontWeight: '500',
+  },
+  timeSeparator: {
+    fontSize: 16,
+    color: '#64748b',
+    fontWeight: '500',
+    paddingHorizontal: 8,
+  },
+  timePickerWrapper: {
+    backgroundColor: '#f8fafc',
+    borderRadius: 8,
+    padding: 16,
+    marginTop: 8,
+    alignItems: 'center',
+  },
+  timePickerLabel: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#374151',
+    marginBottom: 8,
+  },
+  timePicker: {
+    width: '100%',
+    height: 120,
   },
 });
