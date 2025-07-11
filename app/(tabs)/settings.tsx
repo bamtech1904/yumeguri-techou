@@ -237,7 +237,7 @@ export default function SettingsScreen() {
               <Info size={20} color="#64748b" />,
               'アプリについて',
               'バージョン情報・利用規約',
-              () => Alert.alert('アプリについて', '銭湯記録アプリ v1.0.0')
+              () => Alert.alert('アプリについて', '湯めぐり手帳 v1.0.0')
             )}
           </View>
         </View>
@@ -266,10 +266,10 @@ export default function SettingsScreen() {
 
         <View style={styles.footer}>
           <Text style={styles.footerText}>
-            銭湯記録アプリ v1.0.0
+            湯めぐり手帳 v1.0.0
           </Text>
           <Text style={styles.footerSubtext}>
-            © 2025 銭湯記録アプリ. All rights reserved.
+            © 2025 湯めぐり手帳. All rights reserved.
           </Text>
         </View>
       </ScrollView>
