@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -12,7 +12,7 @@ import {
   Linking,
   Platform,
 } from 'react-native';
-// Temporary: Using placeholder until Expo MapView is properly configured
+import WebMapView from '@/components/WebMapView';
 import { MapPin, Search, Star, Navigation, Locate, Heart } from 'lucide-react-native';
 import { Place } from '@/types/place';
 import { placesService } from '@/services/placesService';
@@ -38,6 +38,7 @@ export default function MapScreen() {
   const [showList, setShowList] = useState(false);
   const [showDebug, setShowDebug] = useState(false);
   
+  const mapRef = useRef<any>(null);
   const { visits } = useVisitStore();
 
   useEffect(() => {
@@ -98,6 +99,19 @@ export default function MapScreen() {
   const handleFacilityPress = (facility: FacilityWithDistance) => {
     // TODO: Navigate to facility details or add to visit
     console.log('Selected facility:', facility.name);
+  };
+
+  const handleMarkerPress = (facility: FacilityWithDistance) => {
+    // マーカーがタップされたときのアクション
+    Alert.alert(
+      facility.name,
+      `${facility.formatted_address}\n\n距離: ${facility.distance}\n評価: ${facility.rating?.toFixed(1) || 'N/A'}`,
+      [
+        { text: 'キャンセル', style: 'cancel' },
+        { text: '地図で見る', onPress: () => handleViewOnMaps(facility) },
+        { text: '記録を追加', onPress: () => handleFacilityPress(facility) },
+      ]
+    );
   };
 
 
@@ -188,6 +202,12 @@ export default function MapScreen() {
     loadCurrentLocationAndFacilities();
   };
 
+  const handleRecenterMap = () => {
+    if (currentLocation && mapRef.current) {
+      mapRef.current.recenter();
+    }
+  };
+
   const toggleView = () => {
     setShowList(!showList);
   };
@@ -263,7 +283,7 @@ export default function MapScreen() {
           <View style={styles.headerActions}>
             <TouchableOpacity
               style={styles.refreshButton}
-              onPress={handleRefresh}
+              onPress={showList ? handleRefresh : handleRecenterMap}
               disabled={loading}
             >
               <Locate size={20} color={loading ? '#9ca3af' : '#0ea5e9'} />
@@ -303,18 +323,13 @@ export default function MapScreen() {
               <Text style={styles.loadingText}>地図を読み込み中...</Text>
             </View>
           ) : currentLocation ? (
-            <View style={styles.mapPlaceholder}>
-              <View style={styles.mapContent}>
-                <MapPin size={48} color="#0ea5e9" />
-                <Text style={styles.mapText}>地図表示（開発中）</Text>
-                <Text style={styles.mapSubtext}>
-                  現在地: {currentLocation.latitude.toFixed(4)}, {currentLocation.longitude.toFixed(4)}
-                </Text>
-                <Text style={styles.mapSubtext}>
-                  周辺施設: {filteredFacilities.length}件
-                </Text>
-              </View>
-            </View>
+            <WebMapView
+              ref={mapRef}
+              currentLocation={currentLocation}
+              facilities={filteredFacilities}
+              onMarkerPress={handleMarkerPress}
+              style={styles.map}
+            />
           ) : (
             <View style={styles.mapPlaceholder}>
               <MapPin size={48} color="#ef4444" />

@@ -1,4 +1,4 @@
-# Google Places API設定手順
+# Google Places API & Maps JavaScript API設定手順
 
 ## 1. Google Cloud Console でのAPI設定
 
@@ -7,13 +7,24 @@
 2. 既存のプロジェクトを選択するか、新しいプロジェクトを作成
 3. プロジェクト名は分かりやすい名前（例: `yumeguri-techou`）を設定
 
-### ステップ2: Places API (New) の有効化
+### ステップ2: 必要なAPIの有効化
+以下の2つのAPIを有効化する必要があります：
+
+#### Places API (New) の有効化
 1. 左サイドメニューから「APIs & Services」→「Library」を選択
 2. 検索バーで「Places API」を検索
 3. 「**Places API (New)**」を選択して有効化
 4. 「ENABLE」ボタンをクリック
 
-**重要**: このアプリは新しい Places API (New) のみを使用します
+#### Maps JavaScript API の有効化（地図表示に必要）
+1. 同じく「APIs & Services」→「Library」を選択
+2. 検索バーで「Maps JavaScript API」を検索
+3. 「**Maps JavaScript API**」を選択して有効化
+4. 「ENABLE」ボタンをクリック
+
+**重要**: このアプリは以下の両方のAPIを使用します
+- **Places API (New)**: 銭湯施設の検索
+- **Maps JavaScript API**: 地図の表示とマーカー機能
 
 ### ステップ3: APIキーの作成
 1. 「APIs & Services」→「Credentials」を選択
@@ -27,8 +38,11 @@
    - 本番環境: 「HTTP referrers (web sites)」でドメインを制限
 3. **API restrictions**（必須）:
    - 「Restrict key」を選択
-   - 「Places API (New)」にチェック
+   - 「**Places API (New)**」にチェック
+   - 「**Maps JavaScript API**」にチェック
 4. 「SAVE」をクリック
+
+**注意**: 両方のAPIにアクセス権限を与える必要があります。どちらか一方でも欠けると、対応する機能が動作しません。
 
 ## 2. アプリでの設定
 
@@ -37,8 +51,13 @@
 2. 以下の行を編集:
    ```
    EXPO_PUBLIC_GOOGLE_PLACES_API_KEY=your_actual_api_key_here
+   EXPO_PUBLIC_GOOGLE_MAPS_API_KEY=your_actual_api_key_here
    ```
 3. `your_actual_api_key_here` をGoogle Cloud Consoleで取得したAPIキーに置き換え
+
+**注意**: 
+- 通常は同じAPIキーを両方に設定します（推奨）
+- 異なるキーを使用する場合は、それぞれのキーで必要なAPIが有効化されていることを確認してください
 
 ### ステップ2: 開発サーバーの再起動
 ```bash
@@ -50,9 +69,16 @@ pnpm dev
 ## 3. 動作確認
 
 ### 成功時の表示
+#### 施設検索機能（Places API）
 - アプリのマップタブで「周辺の銭湯を検索中...」と表示される
 - 位置情報許可後、実際の施設データが表示される
 - 警告メッセージ「Google Places API key not configured」が消える
+
+#### 地図表示機能（Maps JavaScript API）
+- 「地図」ボタンをタップして地図表示に切り替え
+- Google Mapsが正常に読み込まれる
+- 現在地（青いマーカー）と銭湯施設（赤/緑のマーカー）が表示される
+- マーカータップで施設情報のポップアップが表示される
 
 ### トラブルシューティング
 
@@ -74,13 +100,35 @@ pnpm dev
    ```
    解決: Google Cloud Console > APIs & Services > Credentials > APIキーを選択
    - Application restrictions: "None" に設定（開発時）
-   - API restrictions: "Places API (New)" のみ選択
+   - API restrictions: "Places API (New)" と "Maps JavaScript API" の両方を選択
    ```
 
 #### エラー: `API_KEY_INVALID`
 - APIキーが正しくコピーされていることを確認
 - 前後にスペースが入っていないか確認
 - APIキーが削除または無効化されていないか確認
+
+#### エラー: Google Maps認証エラー（地図表示時）
+**症状**: 地図部分が「エラーが発生しました」と表示される
+
+**原因と解決方法:**
+1. **Maps JavaScript APIが有効化されていない**
+   ```
+   解決: Google Cloud Console > APIs & Services > Library > "Maps JavaScript API" を検索して有効化
+   ```
+
+2. **APIキーにMaps JavaScript APIの権限がない**
+   ```
+   解決: Google Cloud Console > APIs & Services > Credentials > APIキーを選択
+   - API restrictions で "Maps JavaScript API" にもチェックを入れる
+   ```
+
+3. **EXPO_PUBLIC_GOOGLE_MAPS_API_KEYが未設定**
+   ```
+   解決: .envファイルで両方のAPIキーを設定
+   EXPO_PUBLIC_GOOGLE_PLACES_API_KEY=your_api_key
+   EXPO_PUBLIC_GOOGLE_MAPS_API_KEY=your_api_key
+   ```
 
 #### エラー: `OVER_QUERY_LIMIT`
 - 1日のAPI使用制限を超過
@@ -108,6 +156,9 @@ pnpm dev
 2. **開発サーバーを再起動していない**
 3. **Google Cloud Console で間違ったプロジェクトを選択**
 4. **Places API (Legacy) を有効化して Places API (New) を有効化していない**
+5. **Maps JavaScript APIを有効化し忘れ**
+6. **APIキー制限で片方のAPIにしかアクセス権限を与えていない**
+7. **EXPO_PUBLIC_GOOGLE_MAPS_API_KEYを設定し忘れ**
 
 ## 4. セキュリティ注意事項
 

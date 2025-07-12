@@ -55,7 +55,7 @@ export default function ApiDebugInfo({ visible, onClose }: ApiDebugInfoProps) {
         <View style={styles.section}>
           <Text style={styles.instructions}>
             📝 REQUEST_DENIED エラーの解決方法:{'\n'}
-            1. Google Cloud Console で "Places API (New)" を有効化{'\n'}
+            1. Google Cloud Console で &quot;Places API (New)&quot; を有効化{'\n'}
             2. 請求設定を完了（無料枠でも必須）{'\n'}
             3. APIキー制限を確認{'\n'}
             4. 開発サーバーを再起動{'\n'}
