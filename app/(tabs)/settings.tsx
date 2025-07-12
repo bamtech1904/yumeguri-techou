@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -6,88 +6,62 @@ import {
   SafeAreaView,
   ScrollView,
   TouchableOpacity,
-  Switch,
   Alert,
 } from 'react-native';
 import {
-  User,
-  Bell,
-  Shield,
-  Database,
   Info,
-  LogOut,
   ChevronRight,
   Trash2,
-  Download,
-  Upload,
+  HardDrive,
 } from 'lucide-react-native';
+import { cacheManager } from '@/utils/cacheManager';
+import { imageCacheManager } from '@/utils/imageCache';
 
 export default function SettingsScreen() {
-  const [notifications, setNotifications] = useState(true);
-  const [autoSync, setAutoSync] = useState(true);
-  const [wifiOnly, setWifiOnly] = useState(false);
-  const [highQualityImages, setHighQualityImages] = useState(false);
+  const [cacheSize, setCacheSize] = useState(0);
 
-  const handleExportData = () => {
-    Alert.alert(
-      'データエクスポート',
-      '記録データをファイルに出力しますか？',
-      [
-        { text: 'キャンセル', style: 'cancel' },
-        { text: 'エクスポート', onPress: () => {
-          Alert.alert('エクスポート完了', 'データを出力しました');
-        }},
-      ]
-    );
+  useEffect(() => {
+    loadCacheInfo();
+  }, []);
+
+  const loadCacheInfo = async () => {
+    try {
+      const metrics = cacheManager.getMetrics();
+      const sizeInMB = Math.round((metrics.totalSize / 1024 / 1024) * 10) / 10; // 小数点1桁
+      setCacheSize(sizeInMB);
+    } catch (error) {
+      console.error('Error loading cache info:', error);
+    }
   };
 
-  const handleImportData = () => {
-    Alert.alert(
-      'データインポート',
-      'ファイルから記録データを読み込みますか？',
-      [
-        { text: 'キャンセル', style: 'cancel' },
-        { text: 'インポート', onPress: () => {
-          Alert.alert('インポート完了', 'データを読み込みました');
-        }},
-      ]
-    );
+  const formatCacheSize = (sizeInMB: number): string => {
+    if (sizeInMB < 0.1) {
+      return '0.1MB未満';
+    } else if (sizeInMB < 1) {
+      return `${Math.round(sizeInMB * 10) / 10}MB`;
+    } else {
+      return `${Math.round(sizeInMB * 10) / 10}MB`;
+    }
   };
 
-  const handleClearCache = () => {
+  const handleClearCache = async () => {
+    const sizeText = cacheSize > 0 ? `\n${formatCacheSize(cacheSize)}の容量を解放します` : '';
+    
     Alert.alert(
       'キャッシュクリア',
-      'すべての画像キャッシュを削除しますか？',
+      `すべてのキャッシュを削除しますか？${sizeText}`,
       [
         { text: 'キャンセル', style: 'cancel' },
-        { text: '削除', style: 'destructive', onPress: () => {
-          Alert.alert('クリア完了', 'キャッシュを削除しました');
-        }},
-      ]
-    );
-  };
-
-  const handleDeleteAccount = () => {
-    Alert.alert(
-      'アカウント削除',
-      '本当にアカウントを削除しますか？この操作は取り消せません。',
-      [
-        { text: 'キャンセル', style: 'cancel' },
-        { text: '削除', style: 'destructive', onPress: () => {
-          Alert.alert('削除完了', 'アカウントを削除しました');
-        }},
-      ]
-    );
-  };
-
-  const handleLogout = () => {
-    Alert.alert(
-      'ログアウト',
-      'ログアウトしますか？',
-      [
-        { text: 'キャンセル', style: 'cancel' },
-        { text: 'ログアウト', onPress: () => {
-          Alert.alert('ログアウト', 'ログアウトしました');
+        { text: '削除', style: 'destructive', onPress: async () => {
+          try {
+            await cacheManager.clear();
+            await imageCacheManager.clearImageCache();
+            await loadCacheInfo(); // キャッシュ情報を再読み込み
+            Alert.alert('クリア完了', `${formatCacheSize(cacheSize)}のキャッシュを削除しました`);
+          } catch (error) {
+            console.error('Error clearing cache:', error);
+            Alert.alert('エラー', 'キャッシュの削除に失敗しました');
+          }
         }},
       ]
     );
@@ -129,96 +103,18 @@ export default function SettingsScreen() {
         </View>
 
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>アカウント</Text>
-          <View style={styles.settingGroup}>
-            {renderSettingItem(
-              <User size={20} color="#0ea5e9" />,
-              'プロフィール',
-              'アカウント情報を編集',
-              () => Alert.alert('プロフィール', '機能実装予定')
-            )}
-          </View>
-        </View>
-
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>通知</Text>
-          <View style={styles.settingGroup}>
-            {renderSettingItem(
-              <Bell size={20} color="#10b981" />,
-              '通知',
-              'プッシュ通知の設定',
-              undefined,
-              <Switch
-                value={notifications}
-                onValueChange={setNotifications}
-                trackColor={{ false: '#d1d5db', true: '#0ea5e9' }}
-                thumbColor={notifications ? '#ffffff' : '#f4f4f5'}
-              />
-            )}
-          </View>
-        </View>
-
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>データ同期</Text>
-          <View style={styles.settingGroup}>
-            {renderSettingItem(
-              <Database size={20} color="#f59e0b" />,
-              '自動同期',
-              'データを自動的に同期',
-              undefined,
-              <Switch
-                value={autoSync}
-                onValueChange={setAutoSync}
-                trackColor={{ false: '#d1d5db', true: '#0ea5e9' }}
-                thumbColor={autoSync ? '#ffffff' : '#f4f4f5'}
-              />
-            )}
-            {renderSettingItem(
-              <Download size={20} color="#6366f1" />,
-              'Wi-Fi接続時のみ',
-              'Wi-Fi接続時のみ大容量データを同期',
-              undefined,
-              <Switch
-                value={wifiOnly}
-                onValueChange={setWifiOnly}
-                trackColor={{ false: '#d1d5db', true: '#0ea5e9' }}
-                thumbColor={wifiOnly ? '#ffffff' : '#f4f4f5'}
-              />
-            )}
-            {renderSettingItem(
-              <Upload size={20} color="#8b5cf6" />,
-              '高画質画像',
-              '高画質画像をキャッシュ',
-              undefined,
-              <Switch
-                value={highQualityImages}
-                onValueChange={setHighQualityImages}
-                trackColor={{ false: '#d1d5db', true: '#0ea5e9' }}
-                thumbColor={highQualityImages ? '#ffffff' : '#f4f4f5'}
-              />
-            )}
-          </View>
-        </View>
-
-        <View style={styles.section}>
           <Text style={styles.sectionTitle}>データ管理</Text>
           <View style={styles.settingGroup}>
             {renderSettingItem(
-              <Download size={20} color="#0ea5e9" />,
-              'データエクスポート',
-              '記録データをファイルに出力',
-              handleExportData
-            )}
-            {renderSettingItem(
-              <Upload size={20} color="#0ea5e9" />,
-              'データインポート',
-              'ファイルから記録データを読み込み',
-              handleImportData
+              <HardDrive size={20} color="#0ea5e9" />,
+              'キャッシュ情報',
+              `使用量: ${formatCacheSize(cacheSize)}`,
+              undefined
             )}
             {renderSettingItem(
               <Trash2 size={20} color="#f97316" />,
               'キャッシュクリア',
-              '画像キャッシュを削除して容量を節約',
+              'すべてのキャッシュを削除して容量を節約',
               handleClearCache
             )}
           </View>
@@ -228,38 +124,10 @@ export default function SettingsScreen() {
           <Text style={styles.sectionTitle}>その他</Text>
           <View style={styles.settingGroup}>
             {renderSettingItem(
-              <Shield size={20} color="#64748b" />,
-              'プライバシーポリシー',
-              'プライバシーポリシーを確認',
-              () => Alert.alert('プライバシーポリシー', '機能実装予定')
-            )}
-            {renderSettingItem(
               <Info size={20} color="#64748b" />,
               'アプリについて',
               'バージョン情報・利用規約',
               () => Alert.alert('アプリについて', '湯めぐり手帳 v1.0.0')
-            )}
-          </View>
-        </View>
-
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>アカウント管理</Text>
-          <View style={styles.settingGroup}>
-            {renderSettingItem(
-              <LogOut size={20} color="#ef4444" />,
-              'ログアウト',
-              'アカウントからログアウト',
-              handleLogout,
-              undefined,
-              true
-            )}
-            {renderSettingItem(
-              <Trash2 size={20} color="#ef4444" />,
-              'アカウント削除',
-              'アカウントと全データを削除',
-              handleDeleteAccount,
-              undefined,
-              true
             )}
           </View>
         </View>
