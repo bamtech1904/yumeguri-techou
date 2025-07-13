@@ -1,15 +1,22 @@
 {
   "expo": {
-    "name": "bolt-expo-nativewind",
-    "slug": "bolt-expo-nativewind",
+    "name": "湯めぐり手帳",
+    "slug": "yumeguri-techou",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "myapp",
+    "scheme": "yumeguri",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
+    "splash": {
+      "image": "./assets/images/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#0ea5e9"
+    },
     "ios": {
       "supportsTablet": true,
+      "bundleIdentifier": "com.yumeguri.techou",
+      "buildNumber": "1",
       "infoPlist": {
         "NSLocationWhenInUseUsageDescription": "湯めぐり手帳が周辺の銭湯を検索するために位置情報が必要です。",
         "NSCameraUsageDescription": "湯めぐり手帳が写真を撮影するためにカメラへのアクセスが必要です。",
@@ -17,6 +24,8 @@
       }
     },
     "android": {
+      "package": "com.yumeguri.techou",
+      "versionCode": 1,
       "permissions": [
         "ACCESS_COARSE_LOCATION",
         "ACCESS_FINE_LOCATION",
