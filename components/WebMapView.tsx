@@ -52,23 +52,27 @@ const WebMapView = React.forwardRef<any, WebMapViewProps>(function WebMapView({
         body { margin: 0; padding: 0; height: 100vh; }
         #map { height: 100%; width: 100%; }
         .info-window {
-            max-width: 200px;
+            max-width: 220px;
             font-family: Arial, sans-serif;
+            padding: 4px;
         }
         .info-title {
             font-weight: bold;
             margin-bottom: 4px;
             color: #1e293b;
+            font-size: 14px;
         }
         .info-address {
-            font-size: 12px;
+            font-size: 11px;
             color: #64748b;
             margin-bottom: 8px;
+            line-height: 1.3;
         }
         .info-details {
             display: flex;
             justify-content: space-between;
             align-items: center;
+            margin-bottom: 8px;
         }
         .info-rating {
             font-size: 12px;
@@ -81,6 +85,26 @@ const WebMapView = React.forwardRef<any, WebMapViewProps>(function WebMapView({
             border-radius: 12px;
             font-size: 10px;
             font-weight: 500;
+        }
+        .info-distance {
+            font-size: 11px;
+            color: #0ea5e9;
+            margin-bottom: 8px;
+        }
+        .detail-button {
+            background-color: #0ea5e9;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 6px;
+            font-size: 12px;
+            font-weight: 500;
+            cursor: pointer;
+            width: 100%;
+            transition: background-color 0.2s;
+        }
+        .detail-button:hover {
+            background-color: #0284c7;
         }
     </style>
 </head>
@@ -100,6 +124,38 @@ const WebMapView = React.forwardRef<any, WebMapViewProps>(function WebMapView({
         
         const facilities = ${JSON.stringify(facilities)};
         
+        // 距離計算関数
+        function calculateDistance(lat1, lng1, lat2, lng2) {
+            const R = 6371; // Earth's radius in kilometers
+            const dLat = (lat2 - lat1) * Math.PI / 180;
+            const dLng = (lng2 - lng1) * Math.PI / 180;
+            const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+                     Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+                     Math.sin(dLng/2) * Math.sin(dLng/2);
+            const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+            return R * c;
+        }
+        
+        // 距離フォーマット関数
+        function formatDistance(distanceKm) {
+            if (distanceKm < 1) {
+                return Math.round(distanceKm * 1000) + 'm';
+            } else {
+                return distanceKm.toFixed(1) + 'km';
+            }
+        }
+        
+        // 詳細ポップアップ表示関数
+        function showDetailPopup(placeId) {
+            const facility = facilities.find(f => f.place_id === placeId);
+            if (facility && window.ReactNativeWebView) {
+                window.ReactNativeWebView.postMessage(JSON.stringify({
+                    type: 'detailPress',
+                    facility: facility
+                }));
+            }
+        }
+
         function initMap() {
             map = new google.maps.Map(document.getElementById('map'), {
                 zoom: 15,
@@ -155,6 +211,14 @@ const WebMapView = React.forwardRef<any, WebMapViewProps>(function WebMapView({
                     }
                 });
                 
+                // 距離の計算
+                const distanceKm = currentLocation ? calculateDistance(
+                    currentLocation.lat,
+                    currentLocation.lng,
+                    facility.geometry.location.lat,
+                    facility.geometry.location.lng
+                ) : null;
+                
                 const contentString = \`
                     <div class="info-window">
                         <div class="info-title">\${facility.name}</div>
@@ -163,20 +227,17 @@ const WebMapView = React.forwardRef<any, WebMapViewProps>(function WebMapView({
                             <div class="info-rating">★ \${facility.rating ? facility.rating.toFixed(1) : 'N/A'}</div>
                             \${facility.isVisited ? '<div class="info-badge">訪問済</div>' : ''}
                         </div>
+                        \${distanceKm ? \`<div class="info-distance">距離: \${formatDistance(distanceKm)}</div>\` : ''}
+                        <button class="detail-button" onclick="showDetailPopup('\${facility.place_id}')">
+                            詳細を見る
+                        </button>
                     </div>
                 \`;
                 
                 marker.addListener('click', () => {
                     infoWindow.setContent(contentString);
                     infoWindow.open(map, marker);
-                    
-                    // React Nativeにマーカータップを通知
-                    if (window.ReactNativeWebView) {
-                        window.ReactNativeWebView.postMessage(JSON.stringify({
-                            type: 'markerPress',
-                            facility: facility
-                        }));
-                    }
+                    // 注意: markerPressイベントは削除し、インフォウィンドウのみ表示
                 });
             });
             
@@ -240,7 +301,8 @@ const WebMapView = React.forwardRef<any, WebMapViewProps>(function WebMapView({
       const data = JSON.parse(event.nativeEvent.data);
       
       switch (data.type) {
-        case 'markerPress':
+        case 'detailPress':
+          // 詳細ボタンがタップされた時のみポップアップを表示
           if (onMarkerPress) {
             onMarkerPress(data.facility);
           }

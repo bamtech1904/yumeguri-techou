@@ -391,14 +391,14 @@ const styles = StyleSheet.create({
   },
   header: {
     paddingHorizontal: 20,
-    paddingTop: 20,
-    paddingBottom: 16,
+    paddingTop: 16,
+    paddingBottom: 12,
   },
   title: {
     fontSize: 28,
     fontWeight: '700',
     color: '#1e293b',
-    marginBottom: 16,
+    marginBottom: 12,
   },
   searchContainer: {
     flexDirection: 'row',
@@ -420,11 +420,11 @@ const styles = StyleSheet.create({
     color: '#1e293b',
   },
   mapPlaceholder: {
-    height: 200,
-    marginHorizontal: 20,
-    marginBottom: 24,
+    flex: 1,
+    marginHorizontal: 0,
+    marginBottom: 0,
     backgroundColor: '#e2e8f0',
-    borderRadius: 16,
+    borderRadius: 0,
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -445,7 +445,8 @@ const styles = StyleSheet.create({
   },
   facilitiesSection: {
     flex: 1,
-    paddingHorizontal: 20,
+    paddingHorizontal: 16,
+    paddingTop: 16,
   },
   sectionTitle: {
     fontSize: 18,
@@ -590,10 +591,11 @@ const styles = StyleSheet.create({
     fontSize: 16,
   },
   mapContainer: {
-    height: 300,
-    marginHorizontal: 20,
-    marginBottom: 24,
-    borderRadius: 16,
+    flex: 1,
+    marginTop: 16,
+    marginHorizontal: 0,
+    marginBottom: 0,
+    borderRadius: 0,
     overflow: 'hidden',
   },
   map: {
