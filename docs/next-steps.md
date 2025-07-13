@@ -50,18 +50,44 @@ eas init
 
 ### 3. Apple Developer Account 設定
 
+**⚠️ 重要**: EAS資格情報設定は対話式で行う必要があります。**必ずシステムのTerminal.app（またはiTerm等）から実行してください**：
+
 ```bash
-eas credentials:configure
+# iOS用の資格情報設定（対話式）
+# ⚠️ IDE内のターミナル（VS Code等）ではなく、システムのTerminal.appから実行
+eas credentials:configure-build --platform ios --profile preview
 ```
+
+実行時のプロンプト対応：
+1. **Apple アカウントログイン**: "Do you want to log in to your Apple account?" → `y`
+2. **Apple ID入力**: Developer Program登録済みのApple ID
+3. **パスワード入力**: Apple IDのパスワード
+4. **二段階認証**: SMS/アプリで受信したコード入力
+5. **Team選択**: 複数チームがある場合は該当チームを選択
 
 必要な情報：
 - Apple ID（Developer Program 登録済み）
-- Team ID
-- Bundle Identifier: `com.yumeguri.techou`
+- Apple IDパスワード
+- 二段階認証アクセス
+- Team ID（自動選択される）
+- Bundle Identifier: `com.yumeguri.techou`（自動設定済み）
+
+**代替方法**: 直接ビルドコマンドを実行しても資格情報設定が開始されます：
+```bash
+# ⚠️ これもシステムのTerminal.appから実行
+eas build --platform ios --profile preview
+# 初回実行時に同様の対話式資格情報設定が開始
+```
+
+**実行環境について**: 
+- **必須**: システムのTerminal.app、iTerm、またはコマンドラインから実行
+- **NG**: VS Code、Xcode、WebStorm等のIDE内ターミナルでは `stdin is not readable` エラーが発生
+- **理由**: EAS CLIの対話式入力がIDE環境では正常に動作しないため
 
 ### 4. 初回ビルド（内部配布用）
 
 ```bash
+# ⚠️ これもシステムのTerminal.appから実行
 eas build --platform ios --profile preview
 ```
 

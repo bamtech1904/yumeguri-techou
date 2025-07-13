@@ -26,16 +26,19 @@
 - 迅速なフィードバック収集
 - 開発中の頻繁な更新
 
-### Option B: TestFlight Internal Testing
+### Option B: TestFlight配布（2024年推奨）
 **特徴:**
-- 最大100名の内部テスター
-- App Store Connect経由
-- より本番環境に近い
-- Apple の審査プロセス有り
+- 最大10,000名の外部テスター + 100名の内部テスター
+- App Store Connect経由での配布
+- EAS Submitによる自動化対応
+- より本番環境に近いテスト環境
+- Apple の軽微な審査プロセス有り
 
 **適用場面:**
 - 正式リリース前の最終テスト
+- 大規模なベータテスト
 - Apple Store 審査準備
+- 継続的な配布・更新が必要な場合
 
 ## 実際のビルド手順
 
@@ -53,7 +56,8 @@ eas login
 
 ```bash
 # Apple Developer credentials 設定
-eas credentials:configure
+# ⚠️ 必ずシステムのTerminal.app（またはiTerm等）から実行
+eas credentials:configure-build --platform ios
 ```
 
 以下の情報が必要：
@@ -66,17 +70,31 @@ eas credentials:configure
 #### Internal Distribution ビルド（推奨）
 ```bash
 # プレビュービルド作成
+# ⚠️ 必ずシステムのTerminal.app（またはiTerm等）から実行
 eas build --platform ios --profile preview
 
 # ビルド完了後、共有URLが生成される
 ```
 
-#### App Store Connect 用ビルド
+#### TestFlight配布用ビルド（2024年推奨）
 ```bash
 # プロダクションビルド作成
+# ⚠️ 必ずシステムのTerminal.app（またはiTerm等）から実行
 eas build --platform ios --profile production
 
-# 自動でApp Store Connect にアップロード
+# EAS Submit で自動提出（推奨）
+eas submit --platform ios
+
+# または、ビルドと提出を同時実行
+eas build --platform ios --profile production --auto-submit
+```
+
+#### 従来の手動アップロード（代替手段）
+```bash
+# プロダクションビルド作成のみ
+eas build --platform ios --profile production
+
+# 手動でTransporter使用（後述）
 ```
 
 ### Step 4: 配布
@@ -86,11 +104,44 @@ eas build --platform ios --profile production
 2. テスターにURLを共有
 3. テスターはSafariでURLを開いてインストール
 
-#### TestFlight の場合
-1. App Store Connect でアプリ情報を入力
-2. 内部テスターグループを作成
-3. テスターをメールアドレスで招待
-4. TestFlight アプリからインストール
+#### TestFlight の場合（EAS Submit使用 - 推奨）
+
+**事前準備:**
+1. **App Store Connect でアプリ作成**
+   - [App Store Connect](https://appstoreconnect.apple.com) にログイン
+   - 「マイApp」→「新しいApp」で基本情報入力
+   - Bundle ID: `com.yumeguri.techou` を選択
+
+2. **EAS Submit 実行**
+   ```bash
+   # ⚠️ システムのTerminal.appから実行
+   eas submit --platform ios
+   ```
+   
+   初回実行時のプロンプト対応:
+   - Apple ID とパスワード入力
+   - App Store Connect API キー生成（推奨）
+   - アプリ選択（作成済みのアプリを選択）
+
+**App Store Connect での設定:**
+1. **ビルド処理待ち**
+   - 提出後5-15分でApp Store Connectに反映
+   - 「TestFlight」タブでビルド確認
+
+2. **暗号化コンプライアンス設定**
+   - ビルド横の「Missing Compliance」をクリック
+   - 暗号化使用の有無を選択（通常は「いいえ」）
+   - 「内部テストを開始」をクリック
+
+3. **テスター招待**
+   - 「内部テスト」→「テスターを追加」
+   - メールアドレスでテスターを招待
+   - テスターにTestFlightアプリでのインストール案内
+
+**テスター側の手順:**
+1. TestFlightアプリをインストール
+2. 招待メールのリンクをタップ
+3. TestFlightアプリでアプリをインストール
 
 ## テスターの事前準備
 
@@ -104,7 +155,27 @@ eas build --platform ios --profile production
    - 各UDIDを手動登録
 
 ### TestFlight の場合
-- テスターのApple IDメールアドレスのみ必要
+- テスターのApple IDメールアドレスのみ必要（UDIDの事前登録不要）
+- TestFlightアプリ（無料）のインストールが必要
+
+#### 手動Transporter使用の場合（代替手段）
+**前提条件:**
+- プロダクションビルドが完了済み
+- App Store Connectでアプリが作成済み
+
+**手順:**
+1. **IPAファイルのダウンロード**
+   - EAS Build ダッシュボードからIPAファイルをダウンロード
+   
+2. **Transporterアプリでアップロード**
+   - Mac App StoreからTransporterアプリをインストール
+   - Transporterを開き、Apple IDでログイン
+   - IPAファイルをドラッグ&ドロップ
+   - 「配信」ボタンをクリックしてアップロード
+   
+3. **App Store Connectで確認**
+   - アップロード後、App Store Connectの「TestFlight」タブで確認
+   - 以降の手順はEAS Submit使用時と同様
 
 ## 注意事項とトラブルシューティング
 
@@ -132,8 +203,34 @@ Error: No matching provisioning profile found
 ```
 **解決方法:**
 ```bash
-eas credentials:configure
+# ⚠️ 必ずシステムのTerminal.app（またはiTerm等）から実行
+eas credentials:configure-build --platform ios
 # 新しいProvisioning Profile を作成
+```
+
+#### 4. EAS CLI 対話式コマンドの実行エラー
+```
+Error: Input is required, but stdin is not readable
+```
+**原因:** IDE内のターミナル（VS Code、Xcode等）で実行している
+**解決方法:**
+- **必須**: システムのTerminal.app、iTerm、またはコマンドプロンプトから実行
+- **NG**: VS Code、Xcode、WebStorm等のIDE内ターミナルでは正常動作しない
+- **理由**: EAS CLIの対話式入力がIDE環境では制限されるため
+
+#### 5. Expo Prebuild エラー
+```
+Error: ENOENT: no such file or directory, open './assets/images/splash.png'
+```
+**原因:** app.jsonで参照されているアセットファイルが存在しない
+**解決方法:**
+```bash
+# 不足しているsplash.pngを作成（一時的にicon.pngをコピー）
+cp assets/images/icon.png assets/images/splash.png
+
+# iosディレクトリが破損している場合は削除して再生成
+rm -rf ios
+pnpm expo prebuild --no-install --platform ios
 ```
 
 ### 配布時の問題
@@ -162,12 +259,35 @@ eas credentials:configure
 
 2. 再ビルド・配布
    ```bash
+   # ⚠️ 必ずシステムのTerminal.app（またはiTerm等）から実行
    eas build --platform ios --profile preview
    ```
 
 ### 継続的配布
 - GitHub Actions との連携でCI/CD構築可能
 - `eas submit` コマンドで自動App Store 提出
+
+## 自動化とCI/CD
+
+### EAS Submit のワンコマンド化
+```bash
+# ビルド完了後に自動でTestFlightに提出
+eas build --platform ios --profile production --auto-submit
+
+# さらに効率化：環境変数で認証情報を管理
+export EXPO_APPLE_ID="your-apple-id"
+export EXPO_APPLE_ID_PASSWORD="your-app-specific-password"
+eas build --platform ios --auto-submit --non-interactive
+```
+
+### App Store Connect API キー設定（推奨）
+```bash
+# 一度設定すれば以降の提出が自動化される
+eas credentials --platform ios
+
+# プロンプトで「App Store Connect API Key」を選択
+# Key ID、Issuer ID、.p8ファイルを設定
+```
 
 ## セキュリティ・ベストプラクティス
 
