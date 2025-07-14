@@ -19,6 +19,7 @@ import { placesService } from '@/services/placesService';
 import { locationService, LocationCoords } from '@/services/locationService';
 import { useVisitStore } from '@/store/visitStore';
 import ApiDebugInfo from '@/components/ApiDebugInfo';
+import { AdBanner } from '@/components/AdBanner';
 
 interface FacilityWithDistance extends Place {
   distance?: string;
@@ -314,6 +315,9 @@ export default function MapScreen() {
           />
         </View>
       </View>
+
+      {/* 広告バナー */}
+      <AdBanner />
 
       {!showList && (
         <View style={styles.mapContainer}>

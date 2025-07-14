@@ -21,6 +21,7 @@ import FacilitySearch from '@/components/FacilitySearch';
 import PhotoPicker from '@/components/PhotoPicker';
 import { Place } from '@/types/place';
 import DateTimePicker from '@react-native-community/datetimepicker';
+import { AdBanner } from '@/components/AdBanner';
 
 interface FacilityWithDistance extends Place {
   distance?: string;
@@ -321,6 +322,9 @@ export default function CalendarScreen() {
             markingType="custom"
           />
         </View>
+
+        {/* 広告バナー */}
+        <AdBanner />
 
         <View style={styles.selectedDateSection}>
           <View style={styles.sectionHeader}>
