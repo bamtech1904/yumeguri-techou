@@ -19,7 +19,6 @@ import { placesService } from '@/services/placesService';
 import { locationService, LocationCoords } from '@/services/locationService';
 import { useVisitStore } from '@/store/visitStore';
 import ApiDebugInfo from '@/components/ApiDebugInfo';
-import { AdBanner } from '@/components/AdBanner';
 
 interface FacilityWithDistance extends Place {
   distance?: string;
@@ -36,6 +35,7 @@ export default function MapScreen() {
   const [loading, setLoading] = useState(false);
   const [mapLoading, setMapLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [mapError, setMapError] = useState<string | null>(null);
   const [showList, setShowList] = useState(false);
   const [showDebug, setShowDebug] = useState(false);
   
@@ -316,8 +316,6 @@ export default function MapScreen() {
         </View>
       </View>
 
-      {/* 広告バナー */}
-      <AdBanner />
 
       {!showList && (
         <View style={styles.mapContainer}>
@@ -326,12 +324,28 @@ export default function MapScreen() {
               <ActivityIndicator size="large" color="#0ea5e9" />
               <Text style={styles.loadingText}>地図を読み込み中...</Text>
             </View>
+          ) : mapError ? (
+            <View style={styles.mapPlaceholder}>
+              <MapPin size={48} color="#ef4444" />
+              <Text style={styles.errorText}>地図の読み込みに失敗しました</Text>
+              <Text style={styles.errorDetails}>{mapError}</Text>
+              <TouchableOpacity 
+                style={styles.retryButton} 
+                onPress={() => {
+                  setMapError(null);
+                  handleRefresh();
+                }}
+              >
+                <Text style={styles.retryButtonText}>再試行</Text>
+              </TouchableOpacity>
+            </View>
           ) : currentLocation ? (
             <WebMapView
               ref={mapRef}
               currentLocation={currentLocation}
               facilities={filteredFacilities}
               onMarkerPress={handleMarkerPress}
+              onError={(errorMessage: string) => setMapError(errorMessage)}
               style={styles.map}
             />
           ) : (
@@ -625,6 +639,14 @@ const styles = StyleSheet.create({
     color: '#ef4444',
     textAlign: 'center',
     marginBottom: 16,
+  },
+  errorDetails: {
+    fontSize: 12,
+    color: '#64748b',
+    textAlign: 'center',
+    marginBottom: 16,
+    paddingHorizontal: 20,
+    lineHeight: 18,
   },
   retryButton: {
     backgroundColor: '#0ea5e9',

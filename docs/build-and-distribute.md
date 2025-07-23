@@ -2,14 +2,22 @@
 
 ## 前提条件
 
+### 技術環境 (2025年1月23日更新)
+- **Expo SDK**: 53.0.20
+- **React**: 19.0.0  
+- **React Native**: 0.79.5
+- **Xcode**: 16.4 (SwiftUI 6.0対応)
+- **開発環境**: ハイブリッド (Expo Go + Development Build)
+
 ### 必要なアカウント・ツール
 - Apple Developer Account（有料：$99/年）
 - Expo アカウント（無料）
 - EAS CLI（インストール済み）
 
 ### 事前準備
-- `eas.json` 設定ファイル作成済み
+- `eas.json` 設定ファイル作成済み（Xcode 16.4イメージ対応）
 - `app.json` でアプリ情報設定済み
+- Development Build動作確認完了
 - アプリアイコンとスプラッシュスクリーン準備
 
 ## 配布方法の選択

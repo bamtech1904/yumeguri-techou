@@ -8,27 +8,36 @@
       "developmentClient": true,
       "distribution": "internal",
       "env": {
-        "EXPO_PUBLIC_GOOGLE_MAPS_API_KEY": "$GOOGLE_MAPS_API_KEY"
+        "EXPO_PUBLIC_GOOGLE_MAPS_API_KEY": "$GOOGLE_MAPS_API_KEY",
+        "NODE_ENV": "development",
+        "EXPO_USE_HERMES": "true"
       },
       "ios": {
-        "resourceClass": "m-medium"
+        "resourceClass": "m-medium",
+        "image": "ios-sequoia-16.4-xcode-16.4"
       }
     },
     "preview": {
       "distribution": "internal",
       "env": {
-        "EXPO_PUBLIC_GOOGLE_MAPS_API_KEY": "$GOOGLE_MAPS_API_KEY"
+        "EXPO_PUBLIC_GOOGLE_MAPS_API_KEY": "$GOOGLE_MAPS_API_KEY",
+        "NODE_ENV": "production",
+        "EXPO_USE_HERMES": "true"
       },
       "ios": {
-        "resourceClass": "m-medium"
+        "resourceClass": "m-medium",
+        "image": "ios-sequoia-16.4-xcode-16.4"
       }
     },
     "production": {
       "env": {
-        "EXPO_PUBLIC_GOOGLE_MAPS_API_KEY": "$GOOGLE_MAPS_API_KEY"
+        "EXPO_PUBLIC_GOOGLE_MAPS_API_KEY": "$GOOGLE_MAPS_API_KEY",
+        "NODE_ENV": "production",
+        "EXPO_USE_HERMES": "true"
       },
       "ios": {
-        "resourceClass": "m-medium"
+        "resourceClass": "m-medium",
+        "image": "ios-sequoia-16.4-xcode-16.4"
       }
     }
   },

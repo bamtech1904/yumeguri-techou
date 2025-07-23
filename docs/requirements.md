@@ -153,20 +153,47 @@
 
 ### 5.1. 基本構成
 
-* **フレームワーク**: **React Native**
-* **言語**: **TypeScript**
+* **フレームワーク**: **React Native 0.79.5**
+* **言語**: **TypeScript 5.8.3**
+* **開発基盤**: **Expo SDK 53.0.20**
+* **React**: **19.0.0**
 
-### 5.2. 主要ライブラリ
+### 5.2. 開発環境
 
-| 目的           | ライブラリ名                                |
-| :------------- | :------------------------------------------ |
-| ナビゲーション | **React Navigation**                        |
-| 状態管理       | **Zustand**                                 |
-| ローカルDB     | **AsyncStorage**                            |
-| カレンダーUI   | **react-native-calendars**                  |
-| 地図機能       | **react-native-maps**                       |
-| 位置情報取得   | **@react-native-community/geolocation**     |
-| 銭湯検索       | **react-native-google-places-autocomplete** |
+| 環境 | 用途 | 対応機能 |
+| :--- | :--- | :------- |
+| **Expo Go** | UI/UX開発・高速プロトタイピング | カレンダー、プロフィール、設定、基本ナビゲーション |
+| **Development Build** | ネイティブ機能・実機テスト | react-native-maps、位置情報、Google Places API |
+
+### 5.3. 主要ライブラリ
+
+| 目的           | ライブラリ名                                | 対応環境 |
+| :------------- | :------------------------------------------ | :------- |
+| ナビゲーション | **Expo Router 5.1.4**                      | 両方 |
+| 状態管理       | **Zustand 5.0.6**                          | 両方 |
+| ローカルDB     | **AsyncStorage 2.1.2**                     | 両方 |
+| カレンダーUI   | **react-native-calendars 1.1313.0**        | 両方 |
+| 地図機能       | **react-native-maps** (WebMapView実装)      | Development Build |
+| 位置情報取得   | **expo-location 18.1.6**                   | 両方 |
+| 銭湯検索       | **react-native-google-places-autocomplete 2.5.7** | 両方 |
+| 開発クライアント | **expo-dev-client 5.2.4**                | Development Build |
+
+### 5.4. ハイブリッド開発システム
+
+アプリは実行環境を自動判定し、最適な機能を提供します：
+
+```typescript
+// 環境判定システム
+const isExpoGo = Constants.executionEnvironment === 'storeClient';
+
+if (isExpoGo) {
+  // Expo Go: プレースホルダー表示
+  return <ExpoGoPlaceholder />;
+} else {
+  // Development Build: 実際のネイティブ機能
+  return <NativeMapView />;
+}
+```
 
 ### 5.3. バックエンド・データ管理
 

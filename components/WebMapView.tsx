@@ -1,6 +1,7 @@
 import React, { useRef } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { WebView } from 'react-native-webview';
+import Constants from 'expo-constants';
 import { LocationCoords } from '@/services/locationService';
 
 interface Facility {
@@ -15,6 +16,7 @@ interface Facility {
   formatted_address: string;
   rating?: number;
   price_level?: number;
+  types: string[];
   isVisited?: boolean;
 }
 
@@ -22,6 +24,7 @@ interface WebMapViewProps {
   currentLocation: LocationCoords;
   facilities: Facility[];
   onMarkerPress?: (facility: Facility) => void;
+  onError?: (errorMessage: string) => void;
   style?: any;
 }
 
@@ -29,8 +32,32 @@ const WebMapView = React.forwardRef<any, WebMapViewProps>(function WebMapView({
   currentLocation, 
   facilities, 
   onMarkerPress, 
+  onError,
   style 
 }, ref) {
+  // Expo Goで実行されているかどうかを判定
+  const isExpoGo = Constants.executionEnvironment === 'storeClient';
+  
+  if (isExpoGo) {
+    return (
+      <View style={[styles.container, style]}>
+        <View style={styles.expoGoPlaceholder}>
+          <Text style={styles.placeholderTitle}>🗺️ マップ表示</Text>
+          <Text style={styles.placeholderSubtitle}>現在地: {currentLocation.latitude.toFixed(4)}, {currentLocation.longitude.toFixed(4)}</Text>
+          <Text style={styles.placeholderInfo}>
+            {facilities.length}件の銭湯が見つかりました
+          </Text>
+          <Text style={styles.placeholderNote}>
+            📱 マップ表示はDevelopment Buildで確認できます
+          </Text>
+          <Text style={styles.placeholderInstructions}>
+            react-native-mapsはExpo Goでは利用できません。{'\n'}
+            Development Buildをご利用ください。
+          </Text>
+        </View>
+      </View>
+    );
+  }
   const webViewRef = useRef<WebView>(null);
 
   const generateMapHTML = () => {
@@ -275,10 +302,37 @@ const WebMapView = React.forwardRef<any, WebMapViewProps>(function WebMapView({
             if (window.ReactNativeWebView) {
                 window.ReactNativeWebView.postMessage(JSON.stringify({
                     type: 'authError',
-                    message: 'Google Maps authentication failed. Please check your API key.'
+                    message: 'Google Maps認証が失敗しました。APIキーの設定を確認してください。',
+                    details: 'Maps JavaScript APIが有効化されているか、APIキーの制限設定を確認してください。'
                 }));
             }
         };
+        
+        // より詳細なGoogle Maps APIエラーハンドリング
+        window.addEventListener('load', function() {
+            // Google Maps APIの読み込み状況を確認
+            setTimeout(function() {
+                if (typeof google === 'undefined') {
+                    console.error('Google Maps API script failed to load');
+                    if (window.ReactNativeWebView) {
+                        window.ReactNativeWebView.postMessage(JSON.stringify({
+                            type: 'loadError',
+                            message: 'Google Maps APIスクリプトの読み込みに失敗しました。',
+                            details: 'ネットワーク接続またはAPIキーの設定を確認してください。'
+                        }));
+                    }
+                } else if (typeof google.maps === 'undefined') {
+                    console.error('Google Maps API loaded but maps object not available');
+                    if (window.ReactNativeWebView) {
+                        window.ReactNativeWebView.postMessage(JSON.stringify({
+                            type: 'loadError',
+                            message: 'Google Maps APIは読み込まれましたが、マップオブジェクトが利用できません。',
+                            details: 'Maps JavaScript APIが有効化されているか確認してください。'
+                        }));
+                    }
+                }
+            }, 3000); // 3秒後にチェック
+        });
         
         // API読み込み完了の通知
         window.onload = function() {
@@ -313,6 +367,24 @@ const WebMapView = React.forwardRef<any, WebMapViewProps>(function WebMapView({
           break;
         case 'authError':
           console.error('Google Maps Auth Error:', data.message);
+          console.error('Details:', data.details);
+          // より具体的なエラーメッセージをコンソールに出力
+          console.error('🔑 APIキー確認事項:');
+          console.error('- Google Cloud ConsoleでMaps JavaScript APIが有効化されているか');
+          console.error('- APIキーの制限設定（Application restrictions: None）');
+          console.error('- 請求アカウントが設定されているか');
+          // エラーコールバックを呼び出し
+          if (onError) {
+            onError(`${data.message}\n\n確認事項:\n• Maps JavaScript APIの有効化\n• APIキーの制限設定\n• 請求アカウントの設定`);
+          }
+          break;
+        case 'loadError':
+          console.error('Google Maps Load Error:', data.message);
+          console.error('Details:', data.details);
+          // エラーコールバックを呼び出し
+          if (onError) {
+            onError(`${data.message}\n\n${data.details}`);
+          }
           break;
         case 'loaded':
           console.log('WebView loaded:', data.message);
@@ -348,6 +420,13 @@ const WebMapView = React.forwardRef<any, WebMapViewProps>(function WebMapView({
           <Text style={styles.errorMessage}>
             地図を表示するにはGoogle Maps APIキーの設定が必要です。{'\n'}
             .envファイルでEXPO_PUBLIC_GOOGLE_MAPS_API_KEYを設定してください。
+          </Text>
+          <Text style={styles.errorSteps}>
+            {'\n'}設定手順:{'\n'}
+            1. Google Cloud Console にアクセス{'\n'}
+            2. Maps JavaScript API を有効化{'\n'}
+            3. APIキーを作成し、.envファイルに設定{'\n'}
+            4. アプリを再起動
           </Text>
         </View>
       </View>
@@ -391,6 +470,45 @@ const styles = StyleSheet.create({
   webview: {
     flex: 1,
   },
+  expoGoPlaceholder: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+    backgroundColor: '#f8fafc',
+  },
+  placeholderTitle: {
+    fontSize: 24,
+    fontWeight: '600',
+    color: '#1e293b',
+    marginBottom: 8,
+  },
+  placeholderSubtitle: {
+    fontSize: 14,
+    color: '#64748b',
+    marginBottom: 16,
+    textAlign: 'center',
+  },
+  placeholderInfo: {
+    fontSize: 16,
+    color: '#0f172a',
+    marginBottom: 20,
+    textAlign: 'center',
+    fontWeight: '500',
+  },
+  placeholderNote: {
+    fontSize: 16,
+    color: '#0ea5e9',
+    marginBottom: 16,
+    textAlign: 'center',
+    fontWeight: '600',
+  },
+  placeholderInstructions: {
+    fontSize: 14,
+    color: '#64748b',
+    textAlign: 'center',
+    lineHeight: 20,
+  },
   errorContainer: {
     justifyContent: 'center',
     alignItems: 'center',
@@ -423,5 +541,15 @@ const styles = StyleSheet.create({
     color: '#64748b',
     textAlign: 'center',
     lineHeight: 20,
+  },
+  errorSteps: {
+    fontSize: 12,
+    color: '#94a3b8',
+    textAlign: 'left',
+    lineHeight: 18,
+    backgroundColor: '#f8fafc',
+    padding: 12,
+    borderRadius: 8,
+    marginTop: 8,
   },
 });

@@ -6,8 +6,20 @@
       "Bash(pnpm lint:*)",
       "Bash(pnpm add:*)",
       "Bash(pnpm remove:*)",
-      "Bash(tail:*)"
+      "Bash(tail:*)",
+      "mcp__gemini-cli__geminiChat",
+      "Bash(ls:*)",
+      "Bash(chmod:*)",
+      "Bash(npx expo:*)",
+      "Bash(pnpm install:*)",
+      "Bash(eas build:*)",
+      "Bash(rm:*)",
+      "Bash(pkill:*)"
     ],
     "deny": []
-  }
+  },
+  "enableAllProjectMcpServers": true,
+  "enabledMcpjsonServers": [
+    "gemini-cli"
+  ]
 }

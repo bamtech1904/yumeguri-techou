@@ -1,10 +1,19 @@
-# 湯めぐり手帳 iOS配布 - 次のステップ
+# 湯めぐり手帳 開発環境 - 次のステップ
 
-## 現在の状況
+## 現在の状況 (2025年1月23日更新)
 
 ✅ **完了済み**
+- **Expo SDK 53移行**: React 19.0.0 + React Native 0.79.5
+- **ハイブリッド開発環境**: Expo Go + Development Build対応
+- **SwiftUI 6.0問題解決**: Xcode 16.4完全対応
+- **Development Build**: iOS実機動作確認完了
+- **EAS Build設定**: 最新Xcode 16.4イメージ対応
+- **環境判定システム**: Constants.executionEnvironment実装
+- **型互換性**: TypeScript全エラー解決
+
+✅ **技術基盤確立**
 - アプリ基本設定（app.json, eas.json）
-- EAS CLI インストール・ログイン
+- EAS CLI インストール・ログイン  
 - テスター向けドキュメント作成
 - ビルド・配布手順書作成
 
@@ -12,6 +21,21 @@
 - アプリアイコン・スプラッシュスクリーンの設置
 - Expo プロジェクト初期化
 - Apple Developer Account との連携
+
+## 開発環境の活用方法
+
+### 🚀 ハイブリッド開発フロー
+1. **Expo Go開発**: `npx expo start` → `s` キー → QRコード読み取り
+   - UI/UXコンポーネント開発
+   - 状態管理テスト
+   - 高速プロトタイピング
+
+2. **Development Build開発**: `npx expo start --dev-client` → QRコード読み取り
+   - react-native-maps機能確認
+   - Google Places API動作テスト
+   - 位置情報・実機機能確認
+
+### 🔧 ビルド・配布準備
 
 ## 次に行うべき作業
 

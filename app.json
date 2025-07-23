@@ -7,7 +7,7 @@
     "icon": "./assets/images/icon.png",
     "scheme": "yumeguri",
     "userInterfaceStyle": "automatic",
-    "newArchEnabled": true,
+    "newArchEnabled": false,
     "splash": {
       "image": "./assets/images/splash.png",
       "resizeMode": "contain",
@@ -46,14 +46,7 @@
       "expo-font",
       "expo-web-browser",
       "expo-location",
-      "expo-image-picker",
-      [
-        "react-native-google-mobile-ads",
-        {
-          "androidAppId": "ca-app-pub-3940256099942544~3347511713",
-          "iosAppId": "ca-app-pub-3940256099942544~1458002511"
-        }
-      ]
+      "expo-image-picker"
     ],
     "experiments": {
       "typedRoutes": true

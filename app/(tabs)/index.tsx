@@ -13,7 +13,15 @@ import {
   Platform,
 } from 'react-native';
 import { Calendar, LocaleConfig } from 'react-native-calendars';
-import { Plus, Bath, Star, Clock, MapPin, Search, Calendar as CalendarIcon } from 'lucide-react-native';
+import {
+  Plus,
+  Bath,
+  Star,
+  Clock,
+  MapPin,
+  Search,
+  Calendar as CalendarIcon,
+} from 'lucide-react-native';
 import { useVisitStore } from '@/store/visitStore';
 import { format } from 'date-fns';
 import { useRouter } from 'expo-router';
@@ -21,7 +29,6 @@ import FacilitySearch from '@/components/FacilitySearch';
 import PhotoPicker from '@/components/PhotoPicker';
 import { Place } from '@/types/place';
 import DateTimePicker from '@react-native-community/datetimepicker';
-import { AdBanner } from '@/components/AdBanner';
 
 interface FacilityWithDistance extends Place {
   distance?: string;
@@ -31,23 +38,53 @@ interface FacilityWithDistance extends Place {
 // Japanese locale configuration
 LocaleConfig.locales['ja'] = {
   monthNames: [
-    '1月', '2月', '3月', '4月', '5月', '6月',
-    '7月', '8月', '9月', '10月', '11月', '12月'
+    '1月',
+    '2月',
+    '3月',
+    '4月',
+    '5月',
+    '6月',
+    '7月',
+    '8月',
+    '9月',
+    '10月',
+    '11月',
+    '12月',
   ],
   monthNamesShort: [
-    '1月', '2月', '3月', '4月', '5月', '6月',
-    '7月', '8月', '9月', '10月', '11月', '12月'
+    '1月',
+    '2月',
+    '3月',
+    '4月',
+    '5月',
+    '6月',
+    '7月',
+    '8月',
+    '9月',
+    '10月',
+    '11月',
+    '12月',
   ],
-  dayNames: ['日曜日', '月曜日', '火曜日', '水曜日', '木曜日', '金曜日', '土曜日'],
+  dayNames: [
+    '日曜日',
+    '月曜日',
+    '火曜日',
+    '水曜日',
+    '木曜日',
+    '金曜日',
+    '土曜日',
+  ],
   dayNamesShort: ['日', '月', '火', '水', '木', '金', '土'],
-  today: '今日'
+  today: '今日',
 };
 LocaleConfig.defaultLocale = 'ja';
 
 export default function CalendarScreen() {
   const router = useRouter();
   const { visits, addVisit, getVisitsForMonth } = useVisitStore();
-  const [selectedDate, setSelectedDate] = useState<string>(new Date().toISOString().split('T')[0]);
+  const [selectedDate, setSelectedDate] = useState<string>(
+    new Date().toISOString().split('T')[0]
+  );
   const [modalVisible, setModalVisible] = useState(false);
   const [newVisit, setNewVisit] = useState({
     bathName: '',
@@ -59,11 +96,16 @@ export default function CalendarScreen() {
     photos: [] as string[],
   });
   const [facilitySearchVisible, setFacilitySearchVisible] = useState(false);
-  const [selectedFacility, setSelectedFacility] = useState<FacilityWithDistance | null>(null);
-  const [activeTimePicker, setActiveTimePicker] = useState<'start' | 'end' | null>(null);
+  const [selectedFacility, setSelectedFacility] =
+    useState<FacilityWithDistance | null>(null);
+  const [activeTimePicker, setActiveTimePicker] = useState<
+    'start' | 'end' | null
+  >(null);
   const [tempStartTime, setTempStartTime] = useState(new Date());
   const [tempEndTime, setTempEndTime] = useState(new Date());
-  const [timeValidationError, setTimeValidationError] = useState<string | null>(null);
+  const [timeValidationError, setTimeValidationError] = useState<string | null>(
+    null
+  );
   const [scrollViewRef, setScrollViewRef] = useState<ScrollView | null>(null);
 
   const today = new Date().toISOString().split('T')[0];
@@ -128,7 +170,13 @@ export default function CalendarScreen() {
       photos: [],
       startTime: defaultStartTime,
       endTime: defaultEndTime,
-      visitTime: `${defaultStartTime.getHours()}:${defaultStartTime.getMinutes().toString().padStart(2, '0')}-${defaultEndTime.getHours()}:${defaultEndTime.getMinutes().toString().padStart(2, '0')}`,
+      visitTime: `${defaultStartTime.getHours()}:${defaultStartTime
+        .getMinutes()
+        .toString()
+        .padStart(2, '0')}-${defaultEndTime.getHours()}:${defaultEndTime
+        .getMinutes()
+        .toString()
+        .padStart(2, '0')}`,
     });
     setModalVisible(true);
   };
@@ -188,25 +236,32 @@ export default function CalendarScreen() {
   };
 
   const getSelectedDateVisits = () => {
-    return visits.filter(visit => visit.date === selectedDate);
+    return visits.filter((visit) => visit.date === selectedDate);
   };
 
   const formatTime = (date: Date) => {
-    return `${date.getHours()}:${date.getMinutes().toString().padStart(2, '0')}`;
+    return `${date.getHours()}:${date
+      .getMinutes()
+      .toString()
+      .padStart(2, '0')}`;
   };
 
   const validateTimeRange = (start: Date, end: Date) => {
     return start.getTime() < end.getTime();
   };
 
-
   const handleTempStartTimeChange = (event: any, selectedTime?: Date) => {
     if (selectedTime) {
       setTempStartTime(selectedTime);
       // リアルタイムバリデーション
-      const errorMessage = activeTimePicker === 'start' ? 
-        (validateTimeRange(selectedTime, newVisit.endTime) ? null : `開始時間は終了時間（${formatTime(newVisit.endTime)}）より前に設定してください`) :
-        null;
+      const errorMessage =
+        activeTimePicker === 'start'
+          ? validateTimeRange(selectedTime, newVisit.endTime)
+            ? null
+            : `開始時間は終了時間（${formatTime(
+                newVisit.endTime
+              )}）より前に設定してください`
+          : null;
       setTimeValidationError(errorMessage);
     }
   };
@@ -215,9 +270,14 @@ export default function CalendarScreen() {
     if (selectedTime) {
       setTempEndTime(selectedTime);
       // リアルタイムバリデーション
-      const errorMessage = activeTimePicker === 'end' ?
-        (validateTimeRange(newVisit.startTime, selectedTime) ? null : `終了時間は開始時間（${formatTime(newVisit.startTime)}）より後に設定してください`) :
-        null;
+      const errorMessage =
+        activeTimePicker === 'end'
+          ? validateTimeRange(newVisit.startTime, selectedTime)
+            ? null
+            : `終了時間は開始時間（${formatTime(
+                newVisit.startTime
+              )}）より後に設定してください`
+          : null;
       setTimeValidationError(errorMessage);
     }
   };
@@ -227,14 +287,18 @@ export default function CalendarScreen() {
       const updatedVisit = {
         ...newVisit,
         startTime: tempStartTime,
-        visitTime: `${formatTime(tempStartTime)}-${formatTime(newVisit.endTime)}`,
+        visitTime: `${formatTime(tempStartTime)}-${formatTime(
+          newVisit.endTime
+        )}`,
       };
       setNewVisit(updatedVisit);
     } else if (activeTimePicker === 'end') {
       const updatedVisit = {
         ...newVisit,
         endTime: tempEndTime,
-        visitTime: `${formatTime(newVisit.startTime)}-${formatTime(tempEndTime)}`,
+        visitTime: `${formatTime(newVisit.startTime)}-${formatTime(
+          tempEndTime
+        )}`,
       };
       setNewVisit(updatedVisit);
     }
@@ -264,7 +328,7 @@ export default function CalendarScreen() {
   };
 
   const handlePhotosChange = (photos: string[]) => {
-    setNewVisit({...newVisit, photos});
+    setNewVisit({ ...newVisit, photos });
   };
 
   const renderStars = (rating: number, onPress?: (star: number) => void) => {
@@ -294,7 +358,9 @@ export default function CalendarScreen() {
       <ScrollView showsVerticalScrollIndicator={false}>
         <View style={styles.header}>
           <Text style={styles.title}>銭湯記録</Text>
-          <Text style={styles.subtitle}>今月の訪問: {monthlyVisits.length}回</Text>
+          <Text style={styles.subtitle}>
+            今月の訪問: {monthlyVisits.length}回
+          </Text>
         </View>
 
         <View style={styles.calendarContainer}>
@@ -323,9 +389,6 @@ export default function CalendarScreen() {
           />
         </View>
 
-        {/* 広告バナー */}
-        <AdBanner />
-
         <View style={styles.selectedDateSection}>
           <View style={styles.sectionHeader}>
             <CalendarIcon size={20} color="#0ea5e9" />
@@ -333,12 +396,12 @@ export default function CalendarScreen() {
               {format(new Date(selectedDate), 'MM月dd日')}の記録
             </Text>
           </View>
-          
+
           {selectedDateVisits.length > 0 ? (
             <>
               {selectedDateVisits.map((visit) => (
-                <TouchableOpacity 
-                  key={visit.id} 
+                <TouchableOpacity
+                  key={visit.id}
                   style={styles.visitCard}
                   onPress={() => router.push(`/visit/${visit.id}` as any)}
                   activeOpacity={0.7}
@@ -359,7 +422,7 @@ export default function CalendarScreen() {
                   )}
                 </TouchableOpacity>
               ))}
-              
+
               <TouchableOpacity
                 style={styles.addMoreButton}
                 onPress={handleAddNewRecord}
@@ -400,7 +463,10 @@ export default function CalendarScreen() {
             <View style={styles.statCard}>
               <Text style={styles.statValue}>
                 {visits.length > 0
-                  ? (visits.reduce((sum, visit) => sum + visit.rating, 0) / visits.length).toFixed(1)
+                  ? (
+                      visits.reduce((sum, visit) => sum + visit.rating, 0) /
+                      visits.length
+                    ).toFixed(1)
                   : '0.0'}
               </Text>
               <Text style={styles.statLabel}>平均評価</Text>
@@ -409,10 +475,7 @@ export default function CalendarScreen() {
         </View>
       </ScrollView>
 
-      <TouchableOpacity
-        style={styles.fab}
-        onPress={handleAddNewRecord}
-      >
+      <TouchableOpacity style={styles.fab} onPress={handleAddNewRecord}>
         <Plus size={24} color="#ffffff" />
       </TouchableOpacity>
 
@@ -423,15 +486,18 @@ export default function CalendarScreen() {
         onRequestClose={() => setModalVisible(false)}
       >
         <View style={styles.modalOverlay}>
-          <KeyboardAvoidingView 
+          <KeyboardAvoidingView
             behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
             style={styles.modalContent}
           >
             <Text style={styles.modalTitle}>
-              {selectedDate ? format(new Date(selectedDate), 'yyyy年MM月dd日') : ''}の記録
+              {selectedDate
+                ? format(new Date(selectedDate), 'yyyy年MM月dd日')
+                : ''}
+              の記録
             </Text>
 
-            <ScrollView 
+            <ScrollView
               ref={setScrollViewRef}
               style={styles.modalFormContainer}
               keyboardShouldPersistTaps="handled"
@@ -444,7 +510,9 @@ export default function CalendarScreen() {
                   <TextInput
                     style={[styles.textInput, styles.facilityInput]}
                     value={newVisit.bathName}
-                    onChangeText={(text) => setNewVisit({...newVisit, bathName: text})}
+                    onChangeText={(text) =>
+                      setNewVisit({ ...newVisit, bathName: text })
+                    }
                     placeholder="例: 山田湯"
                   />
                   <TouchableOpacity
@@ -458,15 +526,23 @@ export default function CalendarScreen() {
                   <View style={styles.selectedFacilityContainer}>
                     <View style={styles.selectedFacilityHeader}>
                       <MapPin size={16} color="#0ea5e9" />
-                      <Text style={styles.selectedFacilityName}>{selectedFacility.name}</Text>
+                      <Text style={styles.selectedFacilityName}>
+                        {selectedFacility.name}
+                      </Text>
                     </View>
-                    <Text style={styles.selectedFacilityAddress}>{selectedFacility.formatted_address}</Text>
+                    <Text style={styles.selectedFacilityAddress}>
+                      {selectedFacility.formatted_address}
+                    </Text>
                     {selectedFacility.distance && (
-                      <Text style={styles.selectedFacilityDistance}>距離: {selectedFacility.distance}</Text>
+                      <Text style={styles.selectedFacilityDistance}>
+                        距離: {selectedFacility.distance}
+                      </Text>
                     )}
                     {selectedFacility.rating && (
                       <View style={styles.selectedFacilityRating}>
-                        <Text style={styles.selectedFacilityRatingText}>評価: {selectedFacility.rating.toFixed(1)}</Text>
+                        <Text style={styles.selectedFacilityRatingText}>
+                          評価: {selectedFacility.rating.toFixed(1)}
+                        </Text>
                         {renderStars(selectedFacility.rating)}
                       </View>
                     )}
@@ -478,112 +554,144 @@ export default function CalendarScreen() {
                 <Text style={styles.inputLabel}>訪問時間</Text>
                 <View style={styles.timeDisplayContainer}>
                   <View style={styles.timeButtonsRow}>
-                  <TouchableOpacity
-                    style={[styles.timePickerButton, { flex: 1 }]}
-                    onPress={() => handleTimePickerOpen('start')}
-                  >
-                    <Clock size={16} color="#0ea5e9" />
-                    <Text style={styles.timePickerButtonText}>
-                      開始: {formatTime(newVisit.startTime)}
-                    </Text>
-                  </TouchableOpacity>
-                  <Text style={styles.timeSeparator}>-</Text>
-                  <TouchableOpacity
-                    style={[styles.timePickerButton, { flex: 1 }]}
-                    onPress={() => handleTimePickerOpen('end')}
-                  >
-                    <Clock size={16} color="#0ea5e9" />
-                    <Text style={styles.timePickerButtonText}>
-                      終了: {formatTime(newVisit.endTime)}
-                    </Text>
-                  </TouchableOpacity>
+                    <TouchableOpacity
+                      style={[styles.timePickerButton, { flex: 1 }]}
+                      onPress={() => handleTimePickerOpen('start')}
+                    >
+                      <Clock size={16} color="#0ea5e9" />
+                      <Text style={styles.timePickerButtonText}>
+                        開始: {formatTime(newVisit.startTime)}
+                      </Text>
+                    </TouchableOpacity>
+                    <Text style={styles.timeSeparator}>-</Text>
+                    <TouchableOpacity
+                      style={[styles.timePickerButton, { flex: 1 }]}
+                      onPress={() => handleTimePickerOpen('end')}
+                    >
+                      <Clock size={16} color="#0ea5e9" />
+                      <Text style={styles.timePickerButtonText}>
+                        終了: {formatTime(newVisit.endTime)}
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+                  {activeTimePicker === 'start' && (
+                    <View style={styles.timePickerWrapper}>
+                      <Text style={styles.timePickerLabel}>開始時間を選択</Text>
+                      <DateTimePicker
+                        value={tempStartTime}
+                        mode="time"
+                        is24Hour={true}
+                        display="spinner"
+                        onChange={handleTempStartTimeChange}
+                        style={styles.timePicker}
+                        themeVariant="light"
+                        textColor="#1e293b"
+                      />
+                      {timeValidationError && (
+                        <View style={styles.errorContainer}>
+                          <Text style={styles.errorText}>
+                            {timeValidationError}
+                          </Text>
+                        </View>
+                      )}
+                      <View style={styles.timePickerButtonsRow}>
+                        <TouchableOpacity
+                          style={[
+                            styles.timePickerActionButton,
+                            styles.timePickerCancelButton,
+                          ]}
+                          onPress={handleTimeCancel}
+                        >
+                          <Text style={styles.timePickerCancelButtonText}>
+                            キャンセル
+                          </Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          style={[
+                            styles.timePickerActionButton,
+                            timeValidationError
+                              ? styles.timePickerConfirmButtonDisabled
+                              : styles.timePickerConfirmButton,
+                          ]}
+                          onPress={handleTimeConfirm}
+                          disabled={!!timeValidationError}
+                        >
+                          <Text
+                            style={[
+                              timeValidationError
+                                ? styles.timePickerConfirmButtonTextDisabled
+                                : styles.timePickerConfirmButtonText,
+                            ]}
+                          >
+                            決定
+                          </Text>
+                        </TouchableOpacity>
+                      </View>
+                    </View>
+                  )}
+                  {activeTimePicker === 'end' && (
+                    <View style={styles.timePickerWrapper}>
+                      <Text style={styles.timePickerLabel}>終了時間を選択</Text>
+                      <DateTimePicker
+                        value={tempEndTime}
+                        mode="time"
+                        is24Hour={true}
+                        display="spinner"
+                        onChange={handleTempEndTimeChange}
+                        style={styles.timePicker}
+                        themeVariant="light"
+                        textColor="#1e293b"
+                      />
+                      {timeValidationError && (
+                        <View style={styles.errorContainer}>
+                          <Text style={styles.errorText}>
+                            {timeValidationError}
+                          </Text>
+                        </View>
+                      )}
+                      <View style={styles.timePickerButtonsRow}>
+                        <TouchableOpacity
+                          style={[
+                            styles.timePickerActionButton,
+                            styles.timePickerCancelButton,
+                          ]}
+                          onPress={handleTimeCancel}
+                        >
+                          <Text style={styles.timePickerCancelButtonText}>
+                            キャンセル
+                          </Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          style={[
+                            styles.timePickerActionButton,
+                            timeValidationError
+                              ? styles.timePickerConfirmButtonDisabled
+                              : styles.timePickerConfirmButton,
+                          ]}
+                          onPress={handleTimeConfirm}
+                          disabled={!!timeValidationError}
+                        >
+                          <Text
+                            style={[
+                              timeValidationError
+                                ? styles.timePickerConfirmButtonTextDisabled
+                                : styles.timePickerConfirmButtonText,
+                            ]}
+                          >
+                            決定
+                          </Text>
+                        </TouchableOpacity>
+                      </View>
+                    </View>
+                  )}
                 </View>
-                {activeTimePicker === 'start' && (
-                  <View style={styles.timePickerWrapper}>
-                    <Text style={styles.timePickerLabel}>開始時間を選択</Text>
-                    <DateTimePicker
-                      value={tempStartTime}
-                      mode="time"
-                      is24Hour={true}
-                      display="spinner"
-                      onChange={handleTempStartTimeChange}
-                      style={styles.timePicker}
-                      themeVariant="light"
-                      textColor="#1e293b"
-                    />
-                    {timeValidationError && (
-                      <View style={styles.errorContainer}>
-                        <Text style={styles.errorText}>{timeValidationError}</Text>
-                      </View>
-                    )}
-                    <View style={styles.timePickerButtonsRow}>
-                      <TouchableOpacity
-                        style={[styles.timePickerActionButton, styles.timePickerCancelButton]}
-                        onPress={handleTimeCancel}
-                      >
-                        <Text style={styles.timePickerCancelButtonText}>キャンセル</Text>
-                      </TouchableOpacity>
-                      <TouchableOpacity
-                        style={[
-                          styles.timePickerActionButton, 
-                          timeValidationError ? styles.timePickerConfirmButtonDisabled : styles.timePickerConfirmButton
-                        ]}
-                        onPress={handleTimeConfirm}
-                        disabled={!!timeValidationError}
-                      >
-                        <Text style={[
-                          timeValidationError ? styles.timePickerConfirmButtonTextDisabled : styles.timePickerConfirmButtonText
-                        ]}>決定</Text>
-                      </TouchableOpacity>
-                    </View>
-                  </View>
-                )}
-                {activeTimePicker === 'end' && (
-                  <View style={styles.timePickerWrapper}>
-                    <Text style={styles.timePickerLabel}>終了時間を選択</Text>
-                    <DateTimePicker
-                      value={tempEndTime}
-                      mode="time"
-                      is24Hour={true}
-                      display="spinner"
-                      onChange={handleTempEndTimeChange}
-                      style={styles.timePicker}
-                      themeVariant="light"
-                      textColor="#1e293b"
-                    />
-                    {timeValidationError && (
-                      <View style={styles.errorContainer}>
-                        <Text style={styles.errorText}>{timeValidationError}</Text>
-                      </View>
-                    )}
-                    <View style={styles.timePickerButtonsRow}>
-                      <TouchableOpacity
-                        style={[styles.timePickerActionButton, styles.timePickerCancelButton]}
-                        onPress={handleTimeCancel}
-                      >
-                        <Text style={styles.timePickerCancelButtonText}>キャンセル</Text>
-                      </TouchableOpacity>
-                      <TouchableOpacity
-                        style={[
-                          styles.timePickerActionButton, 
-                          timeValidationError ? styles.timePickerConfirmButtonDisabled : styles.timePickerConfirmButton
-                        ]}
-                        onPress={handleTimeConfirm}
-                        disabled={!!timeValidationError}
-                      >
-                        <Text style={[
-                          timeValidationError ? styles.timePickerConfirmButtonTextDisabled : styles.timePickerConfirmButtonText
-                        ]}>決定</Text>
-                      </TouchableOpacity>
-                    </View>
-                  </View>
-                )}
               </View>
-            </View>
 
               <View style={styles.inputContainer}>
                 <Text style={styles.inputLabel}>評価</Text>
-                {renderStars(newVisit.rating, (star) => setNewVisit({...newVisit, rating: star}))}
+                {renderStars(newVisit.rating, (star) =>
+                  setNewVisit({ ...newVisit, rating: star })
+                )}
               </View>
 
               <View style={styles.inputContainer}>
@@ -591,7 +699,9 @@ export default function CalendarScreen() {
                 <TextInput
                   style={[styles.textInput, styles.commentInput]}
                   value={newVisit.comment}
-                  onChangeText={(text) => setNewVisit({...newVisit, comment: text})}
+                  onChangeText={(text) =>
+                    setNewVisit({ ...newVisit, comment: text })
+                  }
                   onFocus={handleCommentFocus}
                   placeholder="感想を入力..."
                   multiline
@@ -629,7 +739,6 @@ export default function CalendarScreen() {
         onClose={() => setFacilitySearchVisible(false)}
         onSelect={handleFacilitySelect}
       />
-
     </SafeAreaView>
   );
 }
