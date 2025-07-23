@@ -75,7 +75,35 @@ eas credentials:configure-build --platform ios
 
 ### Step 3: ビルド実行
 
-#### Internal Distribution ビルド（推奨）
+#### ローカルビルド（推奨 - プロファイル別整理対応）
+
+**npm scriptsを使用したプロファイル別ビルド**:
+```bash
+# Development Build（開発・テスト用）
+pnpm run build:dev
+
+# Preview Build（内部配布用）
+pnpm run build:preview
+
+# Production Build（TestFlight/App Store用）
+pnpm run build:prod
+```
+
+各ビルドアーティファクトは以下のディレクトリに整理されます：
+- `builds/development/` - Development Build用
+- `builds/preview/` - 内部配布用
+- `builds/production/` - TestFlight/App Store用
+
+**従来のコマンドライン実行**:
+```bash
+# プロファイル別に出力先を指定
+eas build --platform ios --profile preview --local --output ./builds/preview/
+eas build --platform ios --profile production --local --output ./builds/production/
+```
+
+#### クラウドビルド
+
+**Internal Distribution ビルド**:
 ```bash
 # プレビュービルド作成
 # ⚠️ 必ずシステムのTerminal.app（またはiTerm等）から実行
@@ -84,7 +112,7 @@ eas build --platform ios --profile preview
 # ビルド完了後、共有URLが生成される
 ```
 
-#### TestFlight配布用ビルド（2024年推奨）
+**TestFlight配布用ビルド（2024年推奨）**:
 ```bash
 # プロダクションビルド作成
 # ⚠️ 必ずシステムのTerminal.app（またはiTerm等）から実行
@@ -141,10 +169,35 @@ eas build --platform ios --profile production
    - 暗号化使用の有無を選択（通常は「いいえ」）
    - 「内部テストを開始」をクリック
 
-3. **テスター招待**
-   - 「内部テスト」→「テスターを追加」
-   - メールアドレスでテスターを招待
-   - テスターにTestFlightアプリでのインストール案内
+**テスター管理:**
+
+TestFlightでは2種類のテスターを管理できます：
+
+| 種類 | 上限 | 条件 | 審査 | 用途 |
+|------|------|------|------|------|
+| 内部テスター | 100名 | App Store Connectチームメンバー | なし | 開発チーム内テスト |
+| 外部テスター | 10,000名 | Apple IDを持つ任意のユーザー | あり | 一般ユーザーベータテスト |
+
+**内部テスターの追加:**
+1. **App Store Connectでユーザー招待**
+   - 「ユーザーとアクセス」→「ユーザー」→「新しいユーザーを招待」
+   - 役割: 「デベロッパー」または「マーケティング」
+   - TestFlightアクセス権限を付与
+
+2. **TestFlightで内部テスト設定**
+   - 「内部テスト」→「App Store Connectユーザー」
+   - 招待済みユーザーを選択→「テストを開始」
+
+**外部テスターの追加:**
+1. **外部テストグループ作成**
+   - 「TestFlight」→「外部テスト」→「新しいグループを作成」
+   - グループ名とベータ版App情報を入力
+
+2. **テスター招待**
+   - 「テスターを追加」→メールアドレス入力→「招待を送信」
+   - Apple審査（24-48時間）後にテスト開始
+
+**詳細な手順**: [`docs/testflight-tester-management.md`](./testflight-tester-management.md) を参照
 
 **テスター側の手順:**
 1. TestFlightアプリをインストール
@@ -266,6 +319,15 @@ pnpm expo prebuild --no-install --platform ios
    ```
 
 2. 再ビルド・配布
+
+   **ローカルビルド（推奨）**:
+   ```bash
+   # プロファイル別ビルド
+   pnpm run build:preview  # 内部配布用
+   pnpm run build:prod     # TestFlight用
+   ```
+
+   **クラウドビルド**:
    ```bash
    # ⚠️ 必ずシステムのTerminal.app（またはiTerm等）から実行
    eas build --platform ios --profile preview

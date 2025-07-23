@@ -110,6 +110,13 @@ eas build --platform ios --profile preview
 
 ### 4. 初回ビルド（内部配布用）
 
+**推奨方法（プロファイル別整理対応）**:
+```bash
+# 内部配布用ビルド
+pnpm run build:preview
+```
+
+**従来のコマンド**:
 ```bash
 # ⚠️ これもシステムのTerminal.appから実行
 eas build --platform ios --profile preview
@@ -117,7 +124,8 @@ eas build --platform ios --profile preview
 
 このコマンドで：
 - iOS用のアプリファイル(.ipa)が生成される
-- 内部配布用のURLが発行される
+- ローカルビルドの場合は `builds/preview/` ディレクトリに保存
+- クラウドビルドの場合は内部配布用のURLが発行される
 - 最大100デバイスまで配布可能
 
 ### 5. テスター招待

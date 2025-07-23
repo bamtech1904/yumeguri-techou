@@ -8,7 +8,10 @@
     "build:web": "expo export --platform web",
     "lint": "expo lint",
     "android": "expo run:android",
-    "ios": "expo run:ios"
+    "ios": "expo run:ios",
+    "build:dev": "mkdir -p builds/development && eas build --profile development --platform ios --local --output ./builds/development/",
+    "build:preview": "mkdir -p builds/preview && eas build --profile preview --platform ios --local --output ./builds/preview/",
+    "build:prod": "mkdir -p builds/production && eas build --profile production --platform ios --local --output ./builds/production/"
   },
   "dependencies": {
     "@expo/vector-icons": "^14.1.0",

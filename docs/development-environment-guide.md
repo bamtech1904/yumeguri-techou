@@ -143,10 +143,13 @@ npx expo-doctor
 
 ### ビルド・配布
 ```bash
-# 開発用ビルド（ローカル）
-eas build --profile development --platform ios --local
+# プロファイル別ローカルビルド（推奨）
+pnpm run build:dev      # Development Build
+pnpm run build:preview  # 内部配布用
+pnpm run build:prod     # TestFlight/App Store用
 
-# 本番用ビルド（クラウド）
+# 従来のコマンド
+eas build --profile development --platform ios --local
 eas build --profile production --platform ios
 
 # TestFlight自動提出

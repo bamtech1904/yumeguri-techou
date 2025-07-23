@@ -14,7 +14,9 @@
       "Bash(pnpm install:*)",
       "Bash(eas build:*)",
       "Bash(rm:*)",
-      "Bash(pkill:*)"
+      "Bash(pkill:*)",
+      "mcp__gemini-cli__googleSearch",
+      "Bash(mkdir:*)"
     ],
     "deny": []
   },
