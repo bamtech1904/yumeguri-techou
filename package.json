@@ -5,13 +5,16 @@
   "private": true,
   "scripts": {
     "dev": "EXPO_NO_TELEMETRY=1 expo start",
+    "dev:variant": "EXPO_NO_TELEMETRY=1 APP_VARIANT=development expo start",
     "build:web": "expo export --platform web",
     "lint": "expo lint",
     "android": "expo run:android",
     "ios": "expo run:ios",
-    "build:dev": "mkdir -p builds/development && eas build --profile development --platform ios --local --output ./builds/development/",
-    "build:preview": "mkdir -p builds/preview && eas build --profile preview --platform ios --local --output ./builds/preview/",
-    "build:prod": "mkdir -p builds/production && eas build --profile production --platform ios --local --output ./builds/production/"
+    "clean:builds": "rm -rf builds/",
+    "prepare:builds": "mkdir -p builds/development builds/preview builds/production",
+    "build:dev": "npm run prepare:builds && set -a && source ./.env && set +a && APP_VARIANT=development eas build --profile development --platform ios --local --output ./builds/development/app-dev.ipa",
+    "build:preview": "npm run prepare:builds && set -a && source ./.env && set +a && eas build --profile preview --platform ios --local --output ./builds/preview/app-preview.ipa",
+    "build:prod": "npm run prepare:builds && set -a && source ./.env && set +a && eas build --profile production --platform ios --local --output ./builds/production/app-prod.ipa"
   },
   "dependencies": {
     "@expo/vector-icons": "^14.1.0",

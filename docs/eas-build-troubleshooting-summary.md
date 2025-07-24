@@ -78,6 +78,61 @@ config = use_native_modules!(config_command)
 ```
 - 文字列→整数変換の型エラー
 
+### 4. ローカルビルド出力パスエラー (2025-01-23)
+```
+Error: Cannot overwrite directory '/Users/.../builds/production' with non-directory '/.../app.ipa'
+```
+- `--output`オプションにディレクトリパスを指定していたが、EASはファイルパスを期待
+
+---
+
+## 🛠️ 解決済み: ローカルビルド出力パス問題 (2025-01-23)
+
+### 問題の詳細
+**エラーメッセージ**:
+```
+Error: Cannot overwrite directory '/Users/ryo_kogakura/Work/yumeguri-techou/builds/production' with non-directory '/var/folders/qs/fyy3yr496v758vzmt7v_tdkm0000gn/T/eas-build-local-nodejs/286508ef-38f2-42f5-8cd4-f72350acdec9/build/ios/build/app.ipa'.
+```
+
+### 根本原因
+- **問題**: `--output ./builds/production/` というディレクトリパスを指定
+- **EASの期待**: `--output ./builds/production/app.ipa` というファイルパス
+- **結果**: ディレクトリをファイルでの上書きを試行してエラー
+
+### 解決策
+**修正前のpackage.json**:
+```json
+{
+  "scripts": {
+    "build:prod": "mkdir -p builds/production && eas build --profile production --platform ios --local --output ./builds/production/"
+  }
+}
+```
+
+**修正後のpackage.json**:
+```json
+{
+  "scripts": {
+    "clean:builds": "rm -rf builds/",
+    "prepare:builds": "mkdir -p builds/development builds/preview builds/production",
+    "build:dev": "npm run prepare:builds && eas build --profile development --platform ios --local --output ./builds/development/app-dev.ipa",
+    "build:preview": "npm run prepare:builds && eas build --profile preview --platform ios --local --output ./builds/preview/app-preview.ipa",
+    "build:prod": "npm run prepare:builds && eas build --profile production --platform ios --local --output ./builds/production/app-prod.ipa"
+  }
+}
+```
+
+### 改善点
+1. **責任の分離**: ディレクトリ作成(`prepare:builds`)とビルド処理を分離
+2. **正しいパス指定**: `--output`に具体的なIPAファイルパスを指定
+3. **安全な上書き**: 再ビルド時は既存IPAファイルを正常に上書き
+4. **クリーンアップ**: `clean:builds`で簡単にリセット可能
+
+### 検証結果
+- ✅ ビルド自体は正常に完了（12.7 MB）
+- ✅ IPAファイルが指定パスに正常に出力
+- ✅ 再ビルド時の上書きも問題なし
+
 ---
 
 ## 🔍 根本原因分析
@@ -111,10 +166,56 @@ config = use_native_modules!(config_command)
 
 **現在**: Xcode 16アップデート完了 ✅
 
-**次のステップ**:
-1. 環境の完全再同期 (prebuild --clean)
-2. 段階的ビルドテスト
-3. 必要に応じてBareワークフロー検討
+**解決済み (2025-01-23)**:
+1. ✅ 環境の完全再同期 (prebuild --clean)
+2. ✅ 段階的ビルドテスト完了
+3. ✅ ローカルビルド出力パス問題解決
+
+**最新の状況**:
+- ローカルビルドが正常に動作
+- package.jsonスクリプトを安全な形式に修正
+- `--output`オプションに具体的なファイルパス指定に変更
+
+---
+
+## 🔮 今後の改善事項
+
+### EAS環境変数とローカルビルドの設定分離 (2025-01-24)
+
+**現在の課題**:
+- ローカルビルド(`--local`)ではEAS Secretが参照できない
+- リモートビルドとローカルビルドで同じ`eas.json`設定を使用している
+- 環境変数重複で警告が発生: `"The following environment variables are defined in both..."`
+
+**提案される解決策**:
+```json
+// eas.json - プロファイル分離アプローチ
+{
+  "build": {
+    "production-local": {
+      "env": {
+        "EXPO_PUBLIC_GOOGLE_MAPS_API_KEY": "$EXPO_PUBLIC_GOOGLE_MAPS_API_KEY_LOCAL",
+        "EXPO_PUBLIC_GOOGLE_PLACES_API_KEY": "$EXPO_PUBLIC_GOOGLE_PLACES_API_KEY_LOCAL"
+      }
+    },
+    "production": {
+      "env": {
+        "EXPO_PUBLIC_GOOGLE_MAPS_API_KEY": "$EXPO_PUBLIC_GOOGLE_MAPS_API_KEY_REMOTE", 
+        "EXPO_PUBLIC_GOOGLE_PLACES_API_KEY": "$EXPO_PUBLIC_GOOGLE_PLACES_API_KEY_REMOTE"
+      }
+    }
+  }
+}
+```
+
+**環境変数設定**:
+- `.env`: `*_LOCAL` suffix付き変数（ローカルビルド用）
+- EAS環境変数: `*_REMOTE` suffix付き変数（リモートビルド用）
+
+**期待効果**:
+- 完全な環境分離でセキュリティ向上
+- 設定の責任分離で保守性向上  
+- 警告メッセージの解消
 
 ---
 
@@ -126,6 +227,9 @@ config = use_native_modules!(config_command)
 - **最新toolchainの必要性**: Expo SDK の進歩に合わせたXcode更新
 - **バージョン依存関係の複雑性**: React Native生態系の相互依存問題
 - **段階的アプローチの効果**: 一つずつ問題を切り分ける重要性
+- **EAS CLI の仕様理解**: `--output`オプションはファイルパスを期待、ディレクトリパスではない
+- **ビルドスクリプト設計**: 責任の分離とエラーハンドリングの重要性
+- **gemini-cliとの協働**: 複雑な技術問題での外部知識活用の有効性
 
 ---
 

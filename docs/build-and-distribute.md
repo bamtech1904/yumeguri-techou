@@ -16,9 +16,27 @@
 
 ### 事前準備
 - `eas.json` 設定ファイル作成済み（Xcode 16.4イメージ対応）
-- `app.json` でアプリ情報設定済み
+- `app.config.js` でアプリ情報設定済み（動的設定対応）
 - Development Build動作確認完了
 - アプリアイコンとスプラッシュスクリーン準備
+- アプリバリアント設定済み（Development/Production区別対応）
+
+## アプリバリアント機能（2025年1月更新）
+
+このプロジェクトでは、**Development** と **Production** の2つのアプリバリアントを同時にTestFlightで配布できます。
+
+### バリアント設定
+
+| バリアント | アプリ名 | Bundle Identifier | 用途 |
+|-----------|---------|------------------|------|
+| **Development** | 湯めぐり手帳 (Dev) | `com.yumeguri.techou.dev` | 開発・テスト用 |
+| **Production** | 湯めぐり手帳 | `com.yumeguri.techou` | 本番・リリース用 |
+
+### 利点
+- **同時インストール可能**: 異なるBundle Identifierで別アプリとして認識
+- **明確な区別**: アプリ名で一目でプロファイルが分かる
+- **TestFlight管理容易**: 各バリアントが別アプリとして管理される
+- **並行テスト**: Development版で新機能テスト、Production版で安定性確認
 
 ## 配布方法の選択
 
@@ -34,19 +52,21 @@
 - 迅速なフィードバック収集
 - 開発中の頻繁な更新
 
-### Option B: TestFlight配布（2024年推奨）
+### Option B: TestFlight配布（2025年推奨）
 **特徴:**
 - 最大10,000名の外部テスター + 100名の内部テスター
 - App Store Connect経由での配布
 - EAS Submitによる自動化対応
 - より本番環境に近いテスト環境
 - Apple の軽微な審査プロセス有り
+- **アプリバリアント対応**: Development/Production版を同時配布可能
 
 **適用場面:**
 - 正式リリース前の最終テスト
 - 大規模なベータテスト
 - Apple Store 審査準備
 - 継続的な配布・更新が必要な場合
+- Development版とProduction版の並行テスト
 
 ## 実際のビルド手順
 
@@ -80,25 +100,48 @@ eas credentials:configure-build --platform ios
 **npm scriptsを使用したプロファイル別ビルド**:
 ```bash
 # Development Build（開発・テスト用）
+# → 湯めぐり手帳 (Dev) / com.yumeguri.techou.dev
 pnpm run build:dev
 
 # Preview Build（内部配布用）
 pnpm run build:preview
 
 # Production Build（TestFlight/App Store用）
+# → 湯めぐり手帳 / com.yumeguri.techou
 pnpm run build:prod
+
+# ビルドファイルのクリーンアップ（必要時）
+pnpm run clean:builds
 ```
 
-各ビルドアーティファクトは以下のディレクトリに整理されます：
-- `builds/development/` - Development Build用
-- `builds/preview/` - 内部配布用
-- `builds/production/` - TestFlight/App Store用
+### アプリバリアント別ビルド結果
+
+各ビルドで生成されるアプリの詳細：
+
+| ビルドコマンド | アプリ名 | Bundle Identifier | ファイル出力先 |
+|--------------|---------|------------------|---------------|
+| `pnpm run build:dev` | 湯めぐり手帳 (Dev) | `com.yumeguri.techou.dev` | `builds/development/app-dev.ipa` |
+| `pnpm run build:prod` | 湯めぐり手帳 | `com.yumeguri.techou` | `builds/production/app-prod.ipa` |
+
+**ファイル出力先一覧**：
+- `builds/development/app-dev.ipa` - Development Build用（湯めぐり手帳 (Dev)）
+- `builds/preview/app-preview.ipa` - 内部配布用
+- `builds/production/app-prod.ipa` - TestFlight/App Store用（湯めぐり手帳）
+
+**利用可能なユーティリティスクリプト**:
+```bash
+# ディレクトリ構造の事前準備
+pnpm run prepare:builds
+
+# 全ビルドファイルの削除
+pnpm run clean:builds
+```
 
 **従来のコマンドライン実行**:
 ```bash
-# プロファイル別に出力先を指定
-eas build --platform ios --profile preview --local --output ./builds/preview/
-eas build --platform ios --profile production --local --output ./builds/production/
+# プロファイル別に具体的なファイルパスを指定
+eas build --platform ios --profile preview --local --output ./builds/preview/app-preview.ipa
+eas build --platform ios --profile production --local --output ./builds/production/app-prod.ipa
 ```
 
 #### クラウドビルド
@@ -279,7 +322,20 @@ Error: Input is required, but stdin is not readable
 - **NG**: VS Code、Xcode、WebStorm等のIDE内ターミナルでは正常動作しない
 - **理由**: EAS CLIの対話式入力がIDE環境では制限されるため
 
-#### 5. Expo Prebuild エラー
+#### 5. ENOTEMPTY エラー（ビルド後のクリーンアップ失敗）
+```
+ENOTEMPTY: directory not empty, rmdir '/var/folders/.../build/.git'
+Build command failed.
+```
+**症状**: ビルドは成功するが、最後にENOTEMPTYエラーが出力される
+**原因**: EAS Buildのテンポラリディレクトリクリーンアップ処理で`.git`ディレクトリが削除できない
+**影響**: **実際のアプリビルドには影響なし** - IPAファイルは正常に生成される
+**対処法**: 
+- **無視してOK** - IPAファイルが生成されていれば問題なし
+- TestFlightアップロードやアプリの品質には全く影響しない
+- 単なるビルド後のクリーンアップ失敗のため
+
+#### 6. Expo Prebuild エラー
 ```
 Error: ENOENT: no such file or directory, open './assets/images/splash.png'
 ```
@@ -306,25 +362,26 @@ pnpm expo prebuild --no-install --platform ios
 ## 更新とバージョン管理
 
 ### アプリ更新時
-1. `app.json` でバージョン番号を更新
-   ```json
-   {
-     "expo": {
-       "version": "1.0.1",
-       "ios": {
-         "buildNumber": "2"
+1. `app.config.js` でバージョン番号を更新
+   ```javascript
+   export default {
+     expo: {
+       version: '1.0.1',
+       ios: {
+         buildNumber: '2'
        }
+       // その他の設定...
      }
-   }
+   };
    ```
 
 2. 再ビルド・配布
 
    **ローカルビルド（推奨）**:
    ```bash
-   # プロファイル別ビルド
-   pnpm run build:preview  # 内部配布用
-   pnpm run build:prod     # TestFlight用
+   # プロファイル別ビルド（IPAファイルを指定パスに出力）
+   pnpm run build:preview  # 内部配布用 → builds/preview/app-preview.ipa
+   pnpm run build:prod     # TestFlight用 → builds/production/app-prod.ipa
    ```
 
    **クラウドビルド**:

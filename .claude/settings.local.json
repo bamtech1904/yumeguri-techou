@@ -16,7 +16,8 @@
       "Bash(rm:*)",
       "Bash(pkill:*)",
       "mcp__gemini-cli__googleSearch",
-      "Bash(mkdir:*)"
+      "Bash(mkdir:*)",
+      "Bash(eas secret:list:*)"
     ],
     "deny": []
   },

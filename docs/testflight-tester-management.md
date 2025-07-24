@@ -4,6 +4,24 @@
 
 TestFlightはApple公式のベータテスト配信プラットフォームです。最大10,100名のテスターにアプリを配布できます。
 
+## アプリバリアント対応（2025年1月更新）
+
+このプロジェクトでは、**Development** と **Production** の2つのアプリバリアントをTestFlightで同時に配布・管理できます。
+
+### バリアント構成
+
+| バリアント | アプリ名 | Bundle Identifier | TestFlightでの表示 |
+|-----------|---------|------------------|-------------------|
+| **Development** | 湯めぐり手帳 (Dev) | `com.yumeguri.techou.dev` | 別アプリとして表示 |
+| **Production** | 湯めぐり手帳 | `com.yumeguri.techou` | メインアプリとして表示 |
+
+### バリアント管理のメリット
+
+- **並行テスト**: 新機能のテスト（Dev版）と安定版のテスト（Production版）を同時実施
+- **リスク分離**: Development版でのクラッシュがProduction版テストに影響しない  
+- **段階的展開**: Development版で限定テスト後、Production版で本格展開
+- **明確な区別**: アプリ名とアイコンで一目で判別可能
+
 ### テスターの種類
 
 | 種類 | 上限 | 条件 | 審査 | 用途 |
@@ -30,12 +48,22 @@ TestFlightはApple公式のベータテスト配信プラットフォームで�
    ```
 
 2. **アプリの作成（未作成の場合）**
+   
+   **Production版アプリ（メインアプリ）**:
    - 「マイApp」→「新しいApp」をクリック
    - **プラットフォーム**: iOS
    - **名前**: 湯めぐり手帳
    - **主要言語**: 日本語
    - **Bundle ID**: `com.yumeguri.techou`
-   - **SKU**: `yumeguri-techou-2025`（任意の識別子）
+   - **SKU**: `yumeguri-techou-prod`
+   
+   **Development版アプリ（テスト用）**:
+   - 「マイApp」→「新しいApp」をクリック
+   - **プラットフォーム**: iOS
+   - **名前**: 湯めぐり手帳 (Dev)
+   - **主要言語**: 日本語
+   - **Bundle ID**: `com.yumeguri.techou.dev`
+   - **SKU**: `yumeguri-techou-dev`
 
 3. **アプリ情報の入力**
    - **App情報** → **一般情報**
@@ -43,8 +71,9 @@ TestFlightはApple公式のベータテスト配信プラットフォームで�
    - **サブカテゴリ**: 該当なし
    - **コンテンツレーティング**: 適切な年齢制限を設定
 
-### 2. プロダクションビルドの作成・提出
+### 2. ビルドの作成・提出
 
+**Production版（メインアプリ）**:
 ```bash
 # 1. プロダクションビルド作成
 pnpm run build:prod
@@ -53,7 +82,17 @@ pnpm run build:prod
 eas submit --platform ios
 ```
 
-提出後、App Store Connectの「TestFlight」タブでビルドが表示されるまで5-15分待機。
+**Development版（テスト用アプリ）**:
+```bash
+# 1. Development ビルド作成
+pnpm run build:dev
+
+# 2. TestFlightに提出
+eas submit --platform ios
+```
+
+提出後、App Store Connectの「TestFlight」タブで各アプリのビルドが表示されるまで5-15分待機。
+**注意**: 各バリアントは別々のアプリとして表示されます。
 
 ## 内部テスターの追加
 
@@ -229,11 +268,16 @@ App Store → 「TestFlight」で検索 → インストール
 
 ## テスター管理のベストプラクティス
 
-### 1. 段階的な展開
+### 1. アプリバリアント別の段階的展開
 ```
-Phase 1: 内部テスター（5-10名）→ 基本機能確認
-Phase 2: 外部テスター（50-100名）→ 多様な環境でのテスト  
-Phase 3: 外部テスター拡大（300-500名）→ 大規模ユーザビリティテスト
+【Development版】
+Phase 1: 内部テスター（3-5名）→ 新機能の基本動作確認
+Phase 2: 外部テスター（20-50名）→ 限定的なベータテスト
+
+【Production版】  
+Phase 1: 内部テスター（5-10名）→ 安定版の最終確認
+Phase 2: 外部テスター（100-300名）→ 本格的なベータテスト
+Phase 3: 外部テスター拡大（500-1000名）→ 大規模リリース準備
 ```
 
 ### 2. フィードバック収集
@@ -246,17 +290,29 @@ Phase 3: 外部テスター拡大（300-500名）→ 大規模ユーザビリテ
 - **外部テスト**: 2-4週間
 - **フィードバック集約**: テスト終了後1週間
 
-### 4. アップデート配信
-```bash
-# 1. アプリ更新
-# app.json でbuildNumberを増加
+### 4. アップデート配信（バリアント別）
 
-# 2. 新しいビルド作成・提出
+**Production版のアップデート**:
+```bash
+# 1. アプリ更新（app.config.js でbuildNumberを増加）
+
+# 2. 新しいビルド作成・提出  
 pnpm run build:prod
 eas submit --platform ios
 
 # 3. TestFlightで新ビルドを既存グループに割り当て
 # テスターに自動で更新通知が送信される
+```
+
+**Development版のアップデート**:
+```bash  
+# 1. アプリ更新（app.config.js でbuildNumberを増加）
+
+# 2. Development ビルド作成・提出
+pnpm run build:dev
+eas submit --platform ios
+
+# 3. TestFlightでDevelopment版アプリのグループに割り当て
 ```
 
 ## 関連リソース
