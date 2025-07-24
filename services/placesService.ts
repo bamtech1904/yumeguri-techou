@@ -51,7 +51,7 @@ class PlacesService {
 
   async searchNearbyBathhouses(
     location: LocationCoords,
-    radius: number = 5000, // 5km default
+    radius: number = 10000, // 10km default（拡大して春の湯を探索）
     keyword?: string
   ): Promise<Place[]> {
     const apiValidation = this.validateApiKey();
@@ -80,26 +80,29 @@ class PlacesService {
       // 複数の検索方法を試す
       console.log('🔍 複数の検索方法で銭湯を探索中...');
       
-      const [nearbyResults, textResults] = await Promise.allSettled([
+      // 複数のText検索クエリで幅広く検索（春の湯を直接検索）
+      const textQueries = ['銭湯', '温泉', 'サウナ', 'スパ', '湯', '風呂', '春の湯'];
+      
+      const searchPromises = [
         this.searchWithPlacesApi(location, radius, keyword),
-        this.searchWithTextQuery(location, '銭湯'),
-      ]);
+        ...textQueries.map(query => this.searchWithTextQuery(location, query))
+      ];
+      
+      const results = await Promise.allSettled(searchPromises);
 
       let allPlaces: Place[] = [];
       
-      if (nearbyResults.status === 'fulfilled') {
-        console.log(`📍 Nearby検索: ${nearbyResults.value.length}件`);
-        allPlaces = [...allPlaces, ...nearbyResults.value];
-      } else {
-        console.warn('❌ Nearby検索失敗:', nearbyResults.reason);
-      }
-      
-      if (textResults.status === 'fulfilled') {
-        console.log(`🔤 Text検索: ${textResults.value.length}件`);
-        allPlaces = [...allPlaces, ...textResults.value];
-      } else {
-        console.warn('❌ Text検索失敗:', textResults.reason);
-      }
+      // 各検索結果を処理
+      results.forEach((result, index) => {
+        const searchType = index === 0 ? 'Nearby' : `Text(${textQueries[index - 1]})`;
+        
+        if (result.status === 'fulfilled') {
+          allPlaces.push(...result.value);
+          console.log(`✅ ${searchType}検索成功: ${result.value.length}件`);
+        } else {
+          console.warn(`❌ ${searchType}検索失敗:`, result.reason);
+        }
+      });
       
       // 重複除去
       const uniquePlaces = allPlaces.filter((place, index, self) => 
@@ -197,7 +200,7 @@ class PlacesService {
             latitude: location.latitude, 
             longitude: location.longitude 
           },
-          radius: 5000,
+          radius: 10000, // 10kmに拡大
         },
       },
       languageCode: 'ja',
@@ -255,12 +258,6 @@ class PlacesService {
       vicinity: place.formattedAddress?.split(',')[0] || '',
     }));
 
-    // デバッグ: フィルタリングなしで全結果を表示
-    console.log('🔍 Places API が返した全ての施設:');
-    places.forEach((place: Place, index: number) => {
-      console.log(`${index + 1}. ${place.name} (types: ${place.types.join(', ')}) - ${place.formatted_address}`);
-    });
-    
     // 銭湯・温泉・サウナ関連の施設のみをフィルタリング
     const filteredPlaces = places.filter((place: Place) => this.isBathhouseRelated(place));
     
@@ -273,103 +270,84 @@ class PlacesService {
     const name = place.name.toLowerCase();
     const address = place.formatted_address.toLowerCase();
     
-    console.log(`🔍 判定中: ${place.name} (types: ${place.types.join(', ')})`);
-    
-    // フィットネス・ジム関連を除外する詳細なキーワードリスト
+    // 除外キーワード
     const excludeKeywords = [
       // フィットネス・ジム関連
-      'フィットネス', 'fitness', 'gym', 'ジム', 'エクササイズ', 'exercise',
-      'トレーニング', 'training', 'ワークアウト', 'workout', 'ヨガ', 'yoga', 
-      'ピラティス', 'pilates', 'ダンス', 'dance', 'エアロビクス', 'aerobics',
-      'ストレッチ', 'stretch', 'bootcamp', 'ブートキャンプ', 'crossfit', 'クロスフィット',
+      'フィットネス', 'fitness', 'gym', 'ジム', 'ワークアウト', 'workout',
+      'エニタイム', 'anytime', 'ライザップ', 'rizap', 'ゴールドジム', 'goldsgym',
+      'joyfit', 'ジョイフィット', 'chocozap', 'chocoざっぷ',
       
-      // 具体的なフィットネスチェーン名 - より包括的に
-      'エニタイム', 'anytime', 'feelcycle', 'カーブス', 'curves',
-      'ライザップ', 'rizap', 'ティップネス', 'tipness', 'コナミ', 'konami',
-      'セントラル', 'central', 'ルネサンス', 'renaissance', 'オアシス', 'oasis',
-      'ゴールドジム', 'goldsgym', 'joyfit', 'ジョイフィット', 'chocoざっぷ', 'chocozap',
-      'ビーモンスター', 'b-monster', 'スタジオ', 'studio', 'ホットヨガ', 'hotyoga',
-      'lava', 'caldo', 'カルド', 'zen place', 'zenplace', 'メガロス', 'megalos',
+      // マッサージ専門店
+      'タイ古式マッサージ', 'アロマ', 'リラクゼーション', 'エステ',
+      'マッサージ店', 'マッサージサロン',
       
-      // その他の除外対象
-      '公園', 'park', '文化園', 'zoo', '動物園', '美術館', 'museum', 
-      '博物館', '図書館', 'library', '学校', 'school', '大学', 'university',
-      '駅', 'station', '空港', 'airport', 'ショッピングモール', '百貨店',
-      'クリニック', 'clinic', '病院', 'hospital', 
-      '整体', '鍼灸', 'カイロ', 'chiropractic', 'リハビリ', 'rehabilitation',
-      
-      // エステ・美容系（除外対象）
-      'エステ', 'esthetic', 'aesthetic', '脱毛', 'nail', 'ネイル', '美容院',
-      'beauty', 'ビューティー', 'salon', 'サロン', 'まつげ', 'eyelash'
+      // その他
+      '病院', 'hospital', '学校', 'school', '駅', 'station', '空港', 'airport'
     ];
     
-    // 第1段階：除外キーワードが含まれている場合は除外
+    // 除外キーワードチェック
     const hasExcludeKeyword = excludeKeywords.some(keyword => 
       name.includes(keyword) || address.includes(keyword)
     );
     
     if (hasExcludeKeyword) {
-      const foundKeyword = excludeKeywords.find(k => name.includes(k) || address.includes(k));
-      console.log(`🚫 除外: ${place.name} (除外キーワード: "${foundKeyword}")`);
       return false;
     }
     
-    // 第2段階：銭湯・温泉・サウナ関連の積極的な包含キーワード
+    // 包含キーワード
     const includeKeywords = [
-      // 基本的な銭湯・温泉関連
       '銭湯', '温泉', 'サウナ', '湯', '風呂', '浴場', 'バス', 'bath',
       '入浴', '湯屋', 'spa', 'onsen', 'sento', '浴室', '浴槽',
-      
-      // 健康ランド・スーパー銭湯関連
       '健康ランド', 'スーパー銭湯', '入浴施設', '日帰り温泉',
       '岩盤浴', '炭酸泉', '天然温泉', '人工温泉', '療養泉',
-      
-      // 施設名に含まれがちなキーワード
       'ゆ', 'yu', '湯の', '湯乃', '湯之', 'おふろ', 'お風呂',
       'せんとう', 'おんせん', 'サウナー', 'ととのう', '湯処', '湯どころ',
-      
-      // 温泉・銭湯の種類
+      'トレンド', 'trend', '春の湯', 'アサヒ', 'asahi', '21',
+      'FLOOBA', 'flooba', 'フローバ', '春', 'haru',
       '露天風呂', '内湯', '大浴場', '家族風呂', '貸切風呂', '混浴',
       '源泉', 'かけ流し', '掛け流し', '循環', '加水', '加温',
-      
-      // サウナ関連
       'ドライサウナ', 'スチームサウナ', 'ミストサウナ', '水風呂', '外気浴',
       'ロウリュ', 'アウフグース', 'セルフロウリュ',
-      
-      // 健康・リラクゼーション関連（銭湯文脈）
-      'リラクゼーション', 'relaxation', 'wellness', 'ウェルネス', '癒し',
-      '疲労回復', 'デトックス', '血行促進', '新陳代謝'
+      'wellness', 'ウェルネス', '癒し', '疲労回復', 'デトックス', '血行促進', '新陳代謝'
     ];
     
-    // 包含キーワードが含まれているかチェック
     const hasIncludeKeyword = includeKeywords.some(keyword => 
       name.includes(keyword) || address.includes(keyword)
     );
     
     if (hasIncludeKeyword) {
-      const foundKeyword = includeKeywords.find(k => name.includes(k) || address.includes(k));
-      console.log(`✅ 包含: ${place.name} (包含キーワード: "${foundKeyword}")`);
       return true;
     }
     
-    // Google Places APIのtypesを詳細チェック
-    const allowedTypes = ['spa', 'health'];
-    const problematicTypes = ['gym', 'fitness_center', 'physiotherapist', 'beauty_salon', 'hair_care'];
+    // タイプベースのチェック
+    const allowedTypes = ['spa', 'health', 'establishment', 'point_of_interest'];
+    const problematicTypes = ['gym', 'fitness_center', 'beauty_salon', 'nail_salon'];
+    
+    // マッサージ専門店の除外
+    const hasBathhouseTypes = place.types.some(type => 
+      ['sauna', 'public_bath'].includes(type)
+    );
+    const hasMassageOnly = place.types.includes('massage') && !hasBathhouseTypes;
+    
+    if (hasMassageOnly && !hasIncludeKeyword) {
+      return false;
+    }
     
     const hasProblematicType = place.types.some(type => problematicTypes.includes(type));
     if (hasProblematicType) {
-      console.log(`🚫 除外: ${place.name} (問題のあるタイプ: ${place.types.filter(t => problematicTypes.includes(t)).join(', ')})`);
       return false;
     }
     
     const hasAllowedType = place.types.some(type => allowedTypes.includes(type));
     if (hasAllowedType && !hasProblematicType) {
-      console.log(`⚠️ 条件付き包含: ${place.name} (許可タイプ: ${place.types.filter(t => allowedTypes.includes(t)).join(', ')}, キーワードなし)`);
       return true;
     }
     
-    // 上記の条件に当てはまらない場合は除外
-    console.log(`🚫 除外: ${place.name} (銭湯関連キーワードなし, types: ${place.types.join(', ')})`);
+    // フォールバック
+    if (!hasProblematicType) {
+      return true;
+    }
+    
     return false;
   }
 

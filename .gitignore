@@ -42,3 +42,6 @@ yarn-error.*
 builds/
 *.ipa
 *.aab
+
+# temporary files
+tmp/
