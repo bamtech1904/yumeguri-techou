@@ -27,6 +27,7 @@ interface WebMapViewProps {
   onMarkerPress?: (facility: Facility) => void;
   onError?: (errorMessage: string) => void;
   onMapInitialized?: () => void;
+  onMapClicked?: () => void;
   style?: any;
 }
 
@@ -37,6 +38,7 @@ const WebMapView = React.forwardRef<any, WebMapViewProps>(function WebMapView({
   onMarkerPress, 
   onError,
   onMapInitialized,
+  onMapClicked,
   style 
 }, ref) {
   // Expo Goで実行されているかどうかを判定
@@ -165,6 +167,51 @@ const WebMapView = React.forwardRef<any, WebMapViewProps>(function WebMapView({
                     type: 'detailPress',
                     facility: facility
                 }));
+            }
+        }
+
+        // マーカーハイライトとインフォウィンドウをクリアする関数
+        function clearHighlight() {
+            console.log('🧹 clearHighlight called');
+            
+            try {
+                // インフォウィンドウを閉じる
+                if (infoWindow) {
+                    infoWindow.close();
+                    console.log('✅ InfoWindow closed');
+                }
+                
+                // 全マーカーを通常状態に戻す
+                if (markers && markers.length > 0) {
+                    console.log('🔄 Resetting', markers.length, 'markers to normal state');
+                    
+                    markers.forEach((markerData, index) => {
+                        if (markerData.marker) {
+                            const facility = facilities.find(f => f.place_id === markerData.placeId);
+                            if (facility) {
+                                // 通常状態のアイコンに戻す
+                                markerData.marker.setIcon({
+                                    url: 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(\`
+                                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                            <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z" fill="\${facility.isVisited ? '#10b981' : '#ef4444'}" stroke="#ffffff" stroke-width="2"/>
+                                            <circle cx="12" cy="9" r="2.5" fill="#ffffff"/>
+                                        </svg>
+                                    \`),
+                                    scaledSize: new google.maps.Size(24, 24),
+                                    anchor: new google.maps.Point(12, 24)
+                                });
+                                console.log(\`✅ Marker \${index + 1} (\${facility.name}) reset to normal state\`);
+                            }
+                        }
+                    });
+                    
+                    console.log('✅ All markers reset successfully');
+                } else {
+                    console.log('ℹ️ No markers to reset');
+                }
+                
+            } catch (error) {
+                console.error('❌ Error in clearHighlight:', error);
             }
         }
 
@@ -344,15 +391,31 @@ const WebMapView = React.forwardRef<any, WebMapViewProps>(function WebMapView({
                     </div>
                 \`;
                 
-                marker.addListener('click', () => {
+                marker.addListener('click', (e) => {
                     infoWindow.setContent(contentString);
                     infoWindow.open(map, marker);
+                    // マーカークリック時はイベントの伝播を停止してマップクリックを防ぐ
+                    e.stop();
                     // 注意: markerPressイベントは削除し、インフォウィンドウのみ表示
                 });
             });
             
             // 地図の中心を現在地に設定
             map.setCenter(currentLocation);
+            
+            // マップクリック時のイベントリスナーを追加（マーカー以外の場所をクリックした時）
+            map.addListener('click', () => {
+                console.log('🗺️ Map clicked (not on marker), clearing highlight');
+                clearHighlight();
+                
+                // React Nativeに通知
+                if (window.ReactNativeWebView) {
+                    window.ReactNativeWebView.postMessage(JSON.stringify({
+                        type: 'mapClicked',
+                        message: 'Map area clicked, highlights cleared'
+                    }));
+                }
+            });
             
             // マーカー作成完了ログ
             console.log(\`🎯 Marker creation completed. Total markers: \${markers.length}\`);
@@ -382,6 +445,9 @@ const WebMapView = React.forwardRef<any, WebMapViewProps>(function WebMapView({
                 } else if (data.type === 'focusOnLocation') {
                     console.log('🎯 Processing focusOnLocation message:', data);
                     focusOnLocation(data.latitude, data.longitude, data.placeId);
+                } else if (data.type === 'clearHighlight') {
+                    console.log('🧹 Processing clearHighlight message');
+                    clearHighlight();
                 } else {
                     console.log('❓ Unknown message type:', data.type);
                 }
@@ -512,6 +578,13 @@ const WebMapView = React.forwardRef<any, WebMapViewProps>(function WebMapView({
             onMapInitialized();
           }
           break;
+        case 'mapClicked':
+          console.log('Map clicked, highlights cleared:', data.message);
+          // マップクリック時のコールバックを呼び出し
+          if (onMapClicked) {
+            onMapClicked();
+          }
+          break;
         default:
           console.log('Unknown WebView message:', data);
       }
@@ -523,6 +596,29 @@ const WebMapView = React.forwardRef<any, WebMapViewProps>(function WebMapView({
   const recenterMap = () => {
     if (webViewRef.current) {
       webViewRef.current.postMessage(JSON.stringify({ type: 'recenter' }));
+    }
+  };
+
+  const clearHighlight = () => {
+    console.log('🧹 Clearing map highlights');
+    if (webViewRef.current) {
+      webViewRef.current.postMessage(JSON.stringify({ type: 'clearHighlight' }));
+      
+      // 代替手段としてJavaScriptも直接実行
+      const jsCode = `
+        try {
+          console.log('🧹 Direct JS injection - clearHighlight called');
+          if (typeof clearHighlight === 'function') {
+            clearHighlight();
+          } else {
+            console.error('❌ clearHighlight function not found');
+          }
+        } catch (error) {
+          console.error('❌ Error in clearHighlight injection:', error);
+        }
+        true;
+      `;
+      webViewRef.current.injectJavaScript(jsCode);
     }
   };
 
@@ -566,7 +662,8 @@ const WebMapView = React.forwardRef<any, WebMapViewProps>(function WebMapView({
   // 外部から呼び出せるメソッドを公開
   React.useImperativeHandle(ref, () => ({
     recenter: recenterMap,
-    focusOnLocation
+    focusOnLocation,
+    clearHighlight
   }), []);
 
   const GOOGLE_MAPS_API_KEY = process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY || process.env.EXPO_PUBLIC_GOOGLE_PLACES_API_KEY || '';

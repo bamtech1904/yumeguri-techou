@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   View,
   Text,
@@ -19,7 +19,7 @@ import { placesService } from '@/services/placesService';
 import { locationService, LocationCoords } from '@/services/locationService';
 import { useVisitStore } from '@/store/visitStore';
 import ApiDebugInfo from '@/components/ApiDebugInfo';
-import { useLocalSearchParams } from 'expo-router';
+import { useLocalSearchParams, useRouter, useFocusEffect } from 'expo-router';
 
 interface FacilityWithDistance extends Place {
   distance?: string;
@@ -30,6 +30,7 @@ interface FacilityWithDistance extends Place {
 
 export default function MapScreen() {
   const params = useLocalSearchParams<{ place_id?: string; latitude?: string; longitude?: string }>();
+  const router = useRouter();
   const [searchQuery, setSearchQuery] = useState('');
   const [facilities, setFacilities] = useState<FacilityWithDistance[]>([]);
   const [filteredFacilities, setFilteredFacilities] = useState<FacilityWithDistance[]>([]);
@@ -41,6 +42,7 @@ export default function MapScreen() {
   const [showList, setShowList] = useState(false);
   const [showDebug, setShowDebug] = useState(false);
   const [mapInitialized, setMapInitialized] = useState(false);
+  const [highlightCleared, setHighlightCleared] = useState(false);
   
   const mapRef = useRef<any>(null);
   const { visits, addToWishlist, removeFromWishlist, isInWishlist } = useVisitStore();
@@ -72,11 +74,14 @@ export default function MapScreen() {
         mapInitialized 
       });
       
+      // ハイライトクリア状態をリセット
+      setHighlightCleared(false);
+      
       // マップが初期化完了後にフォーカス
       const timer = setTimeout(() => {
         console.log('🚀 Calling focusOnLocation');
         mapRef.current.focusOnLocation(lat, lng, params.place_id);
-      }, 500); // より短い遅延に変更
+      }, 500);
       
       return () => clearTimeout(timer);
     } else {
@@ -87,7 +92,33 @@ export default function MapScreen() {
         mapInitialized
       });
     }
-  }, [params, currentLocation, mapInitialized]);
+  }, [params, currentLocation, mapInitialized, highlightCleared]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ページにフォーカスした時の処理
+  useFocusEffect(
+    useCallback(() => {
+      console.log('📍 Map screen focused');
+      
+      // パラメータがない状態でフォーカスされた場合（他ページから戻った場合）
+      if (!params.place_id && !params.latitude && !params.longitude) {
+        // 既にハイライトがある場合はクリア
+        if (!highlightCleared && mapRef.current && mapInitialized) {
+          console.log('🧹 Clearing highlight on screen focus (no params)');
+          setTimeout(() => {
+            if (mapRef.current) {
+              mapRef.current.clearHighlight();
+              setHighlightCleared(true);
+            }
+          }, 500); // マップが準備できるまで少し待つ
+        }
+      }
+      
+      // クリーンアップ関数
+      return () => {
+        console.log('📍 Map screen unfocused');
+      };
+    }, [params.place_id, params.latitude, params.longitude, highlightCleared, mapInitialized])
+  );
 
   const loadCurrentLocationAndFacilities = async () => {
     setLoading(true);
@@ -264,6 +295,18 @@ export default function MapScreen() {
     setMapInitialized(true);
   };
 
+  const handleMapClicked = () => {
+    console.log('🗺️ Map clicked, clearing URL parameters');
+    clearUrlParams();
+    setHighlightCleared(true);
+  };
+
+  const clearUrlParams = () => {
+    console.log('🧹 Clearing URL parameters');
+    router.replace('/(tabs)/map');
+  };
+
+
   const toggleView = () => {
     setShowList(!showList);
   };
@@ -415,6 +458,7 @@ export default function MapScreen() {
               onMarkerPress={handleMarkerPress}
               onError={(errorMessage: string) => setMapError(errorMessage)}
               onMapInitialized={handleMapInitialized}
+              onMapClicked={handleMapClicked}
               style={styles.map}
             />
           ) : (
