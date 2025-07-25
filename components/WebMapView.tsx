@@ -23,41 +23,24 @@ interface Facility {
 interface WebMapViewProps {
   currentLocation: LocationCoords;
   facilities: Facility[];
+  selectedPlaceId?: string;
   onMarkerPress?: (facility: Facility) => void;
   onError?: (errorMessage: string) => void;
+  onMapInitialized?: () => void;
   style?: any;
 }
 
 const WebMapView = React.forwardRef<any, WebMapViewProps>(function WebMapView({ 
   currentLocation, 
-  facilities, 
+  facilities,
+  selectedPlaceId,
   onMarkerPress, 
   onError,
+  onMapInitialized,
   style 
 }, ref) {
   // Expo Goで実行されているかどうかを判定
   const isExpoGo = Constants.executionEnvironment === 'storeClient';
-  
-  if (isExpoGo) {
-    return (
-      <View style={[styles.container, style]}>
-        <View style={styles.expoGoPlaceholder}>
-          <Text style={styles.placeholderTitle}>🗺️ マップ表示</Text>
-          <Text style={styles.placeholderSubtitle}>現在地: {currentLocation.latitude.toFixed(4)}, {currentLocation.longitude.toFixed(4)}</Text>
-          <Text style={styles.placeholderInfo}>
-            {facilities.length}件の銭湯が見つかりました
-          </Text>
-          <Text style={styles.placeholderNote}>
-            📱 マップ表示はDevelopment Buildで確認できます
-          </Text>
-          <Text style={styles.placeholderInstructions}>
-            react-native-mapsはExpo Goでは利用できません。{'\n'}
-            Development Buildをご利用ください。
-          </Text>
-        </View>
-      </View>
-    );
-  }
   const webViewRef = useRef<WebView>(null);
 
   const generateMapHTML = () => {
@@ -143,6 +126,7 @@ const WebMapView = React.forwardRef<any, WebMapViewProps>(function WebMapView({
     <script>
         let map;
         let infoWindow;
+        let markers = [];
         
         const currentLocation = {
             lat: ${currentLocation.latitude},
@@ -150,6 +134,7 @@ const WebMapView = React.forwardRef<any, WebMapViewProps>(function WebMapView({
         };
         
         const facilities = ${JSON.stringify(facilities)};
+        const selectedPlaceId = ${JSON.stringify(selectedPlaceId)};
         
         // 距離計算関数
         function calculateDistance(lat1, lng1, lat2, lng2) {
@@ -183,7 +168,87 @@ const WebMapView = React.forwardRef<any, WebMapViewProps>(function WebMapView({
             }
         }
 
+        // 特定の座標に地図をフォーカスする関数
+        function focusOnLocation(lat, lng, placeId) {
+            console.log('🎯 focusOnLocation called:', { lat, lng, placeId });
+            
+            if (!map) {
+                console.error('❌ Map not initialized');
+                return;
+            }
+            
+            try {
+                const targetLat = parseFloat(lat);
+                const targetLng = parseFloat(lng);
+                
+                console.log('📍 Setting map center to:', { lat: targetLat, lng: targetLng });
+                map.setCenter({ lat: targetLat, lng: targetLng });
+                map.setZoom(16);
+                console.log('✅ Map center and zoom set successfully');
+                
+                // 該当するマーカーのインフォウィンドウを開く
+                if (placeId) {
+                    console.log('🔍 Looking for facility with placeId:', placeId);
+                    console.log('📍 Available facilities:', facilities.length);
+                    console.log('🏷️ Available markers:', markers.length);
+                    
+                    const facility = facilities.find(f => f.place_id === placeId);
+                    if (!facility) {
+                        console.error('❌ Facility not found for placeId:', placeId);
+                        return;
+                    }
+                    
+                    console.log('✅ Found facility:', facility.name);
+                    
+                    const markerData = markers.find(m => m.placeId === placeId);
+                    if (!markerData || !markerData.marker) {
+                        console.error('❌ Marker not found for placeId:', placeId);
+                        console.log('Available marker placeIds:', markers.map(m => m.placeId));
+                        return;
+                    }
+                    
+                    console.log('✅ Found marker for facility');
+                    
+                    try {
+                        // インフォウィンドウの内容を生成
+                        const distanceKm = currentLocation ? calculateDistance(
+                            currentLocation.lat,
+                            currentLocation.lng,
+                            facility.geometry.location.lat,
+                            facility.geometry.location.lng
+                        ) : null;
+                        
+                        const contentString = \`
+                            <div class="info-window">
+                                <div class="info-title">\${facility.name}</div>
+                                <div class="info-address">\${facility.formatted_address}</div>
+                                <div class="info-details">
+                                    <div class="info-rating">★ \${facility.rating ? facility.rating.toFixed(1) : 'N/A'}</div>
+                                    \${facility.isVisited ? '<div class="info-badge">訪問済</div>' : ''}
+                                </div>
+                                \${distanceKm ? \`<div class="info-distance">距離: \${formatDistance(distanceKm)}</div>\` : ''}
+                                <button class="detail-button" onclick="showDetailPopup('\${facility.place_id}')">
+                                    詳細を見る
+                                </button>
+                            </div>
+                        \`;
+                        
+                        console.log('📄 Setting info window content');
+                        infoWindow.setContent(contentString);
+                        infoWindow.open(map, markerData.marker);
+                        console.log('✅ Info window opened successfully');
+                        
+                    } catch (infoError) {
+                        console.error('❌ Error opening info window:', infoError);
+                    }
+                }
+            } catch (error) {
+                console.error('❌ Error in focusOnLocation:', error);
+            }
+        }
+
         function initMap() {
+            console.log('🚀 Initializing map...');
             map = new google.maps.Map(document.getElementById('map'), {
                 zoom: 15,
                 center: currentLocation,
@@ -199,6 +264,10 @@ const WebMapView = React.forwardRef<any, WebMapViewProps>(function WebMapView({
             });
             
             infoWindow = new google.maps.InfoWindow();
+            
+            // マーカー配列を初期化
+            markers = [];
+            console.log('📍 Markers array initialized');
             
             // ユーザーの現在位置マーカー
             const userMarker = new google.maps.Marker({
@@ -218,7 +287,11 @@ const WebMapView = React.forwardRef<any, WebMapViewProps>(function WebMapView({
             });
             
             // 銭湯施設のマーカー
-            facilities.forEach(facility => {
+            console.log('🏗️ Creating markers for', facilities.length, 'facilities');
+            facilities.forEach((facility, index) => {
+                const isSelected = selectedPlaceId === facility.place_id;
+                console.log(\`📍 Creating marker \${index + 1}: \${facility.name} (selected: \${isSelected})\`);
+                
                 const marker = new google.maps.Marker({
                     position: {
                         lat: facility.geometry.location.lat,
@@ -229,14 +302,24 @@ const WebMapView = React.forwardRef<any, WebMapViewProps>(function WebMapView({
                     icon: {
                         url: 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(\`
                             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                                <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z" fill="\${facility.isVisited ? '#10b981' : '#ef4444'}" stroke="#ffffff" stroke-width="2"/>
+                                <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z" fill="\${
+                                    isSelected ? '#f59e0b' : (facility.isVisited ? '#10b981' : '#ef4444')
+                                }" stroke="#ffffff" stroke-width="\${isSelected ? '3' : '2'}"/>
                                 <circle cx="12" cy="9" r="2.5" fill="#ffffff"/>
                             </svg>
                         \`),
-                        scaledSize: new google.maps.Size(24, 24),
-                        anchor: new google.maps.Point(12, 24)
+                        scaledSize: new google.maps.Size(isSelected ? 32 : 24, isSelected ? 32 : 24),
+                        anchor: new google.maps.Point(isSelected ? 16 : 12, isSelected ? 32 : 24)
                     }
                 });
+                
+                // マーカーを配列に保存
+                const markerData = {
+                    marker: marker,
+                    placeId: facility.place_id
+                };
+                markers.push(markerData);
+                console.log(\`✅ Marker added to array: \${facility.name} (placeId: \${facility.place_id})\`);
                 
                 // 距離の計算
                 const distanceKm = currentLocation ? calculateDistance(
@@ -270,16 +353,49 @@ const WebMapView = React.forwardRef<any, WebMapViewProps>(function WebMapView({
             
             // 地図の中心を現在地に設定
             map.setCenter(currentLocation);
+            
+            // マーカー作成完了ログ
+            console.log(\`🎯 Marker creation completed. Total markers: \${markers.length}\`);
+            console.log('🏷️ Marker placeIds:', markers.map(m => m.placeId));
+            
+            // マップ初期化完了をReact Nativeに通知
+            console.log('🗺️ Map initialization completed');
+            if (window.ReactNativeWebView) {
+                window.ReactNativeWebView.postMessage(JSON.stringify({
+                    type: 'mapInitialized',
+                    message: 'Map has been initialized and is ready'
+                }));
+            }
         }
         
-        // React Nativeからのメッセージを受信
-        document.addEventListener('message', function(e) {
-            const data = JSON.parse(e.data);
-            if (data.type === 'recenter') {
-                map.setCenter(currentLocation);
-                map.setZoom(15);
+        // メッセージハンドラー関数
+        function handleMessage(e) {
+            console.log('📨 WebView received message:', e.data);
+            try {
+                const data = JSON.parse(e.data);
+                console.log('📨 Parsed message data:', data);
+                
+                if (data.type === 'recenter') {
+                    console.log('🎯 Processing recenter message');
+                    map.setCenter(currentLocation);
+                    map.setZoom(15);
+                } else if (data.type === 'focusOnLocation') {
+                    console.log('🎯 Processing focusOnLocation message:', data);
+                    focusOnLocation(data.latitude, data.longitude, data.placeId);
+                } else {
+                    console.log('❓ Unknown message type:', data.type);
+                }
+            } catch (error) {
+                console.error('❌ Error parsing message:', error);
+                console.error('❌ Raw message data:', e.data);
             }
-        });
+        }
+
+        // React Nativeからのメッセージを受信（複数の方法で試行）
+        document.addEventListener('message', handleMessage);
+        window.addEventListener('message', handleMessage);
+        
+        console.log('📨 Message listeners registered');
         
         // 詳細なエラーハンドリング
         window.addEventListener('error', function(e) {
@@ -389,6 +505,13 @@ const WebMapView = React.forwardRef<any, WebMapViewProps>(function WebMapView({
         case 'loaded':
           console.log('WebView loaded:', data.message);
           break;
+        case 'mapInitialized':
+          console.log('Map initialized:', data.message);
+          // マップが初期化されたことを親コンポーネントに通知
+          if (onMapInitialized) {
+            onMapInitialized();
+          }
+          break;
         default:
           console.log('Unknown WebView message:', data);
       }
@@ -403,12 +526,71 @@ const WebMapView = React.forwardRef<any, WebMapViewProps>(function WebMapView({
     }
   };
 
+  const focusOnLocation = (latitude: number, longitude: number, placeId?: string) => {
+    const message = { 
+      type: 'focusOnLocation',
+      latitude,
+      longitude,
+      placeId
+    };
+    console.log('📤 Sending focusOnLocation message:', message);
+    
+    if (webViewRef.current) {
+      // 方法1: postMessage
+      const messageString = JSON.stringify(message);
+      console.log('📤 Message string:', messageString);
+      webViewRef.current.postMessage(messageString);
+      console.log('✅ PostMessage sent successfully');
+      
+      // 方法2: injectedJavaScript（代替手段）
+      const jsCode = `
+        try {
+          console.log('🚀 Direct JS injection - focusOnLocation called');
+          if (typeof focusOnLocation === 'function') {
+            focusOnLocation(${latitude}, ${longitude}, '${placeId || ''}');
+          } else {
+            console.error('❌ focusOnLocation function not found');
+          }
+        } catch (error) {
+          console.error('❌ Error in injected JS:', error);
+        }
+        true;
+      `;
+      console.log('📤 Sending injected JavaScript as backup');
+      webViewRef.current.injectJavaScript(jsCode);
+    } else {
+      console.error('❌ WebView ref is null');
+    }
+  };
+
   // 外部から呼び出せるメソッドを公開
   React.useImperativeHandle(ref, () => ({
-    recenter: recenterMap
+    recenter: recenterMap,
+    focusOnLocation
   }), []);
 
   const GOOGLE_MAPS_API_KEY = process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY || process.env.EXPO_PUBLIC_GOOGLE_PLACES_API_KEY || '';
+
+  if (isExpoGo) {
+    return (
+      <View style={[styles.container, style]}>
+        <View style={styles.expoGoPlaceholder}>
+          <Text style={styles.placeholderTitle}>🗺️ マップ表示</Text>
+          <Text style={styles.placeholderSubtitle}>現在地: {currentLocation.latitude.toFixed(4)}, {currentLocation.longitude.toFixed(4)}</Text>
+          <Text style={styles.placeholderInfo}>
+            {facilities.length}件の銭湯が見つかりました
+          </Text>
+          <Text style={styles.placeholderNote}>
+            📱 マップ表示はDevelopment Buildで確認できます
+          </Text>
+          <Text style={styles.placeholderInstructions}>
+            react-native-mapsはExpo Goでは利用できません。{'\n'}
+            Development Buildをご利用ください。
+          </Text>
+        </View>
+      </View>
+    );
+  }
   
   // APIキーが設定されていない場合のフォールバック表示
   if (!GOOGLE_MAPS_API_KEY || GOOGLE_MAPS_API_KEY === 'your_actual_api_key_here') {

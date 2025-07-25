@@ -19,6 +19,7 @@ import { placesService } from '@/services/placesService';
 import { locationService, LocationCoords } from '@/services/locationService';
 import { useVisitStore } from '@/store/visitStore';
 import ApiDebugInfo from '@/components/ApiDebugInfo';
+import { useLocalSearchParams } from 'expo-router';
 
 interface FacilityWithDistance extends Place {
   distance?: string;
@@ -28,6 +29,7 @@ interface FacilityWithDistance extends Place {
 
 
 export default function MapScreen() {
+  const params = useLocalSearchParams<{ place_id?: string; latitude?: string; longitude?: string }>();
   const [searchQuery, setSearchQuery] = useState('');
   const [facilities, setFacilities] = useState<FacilityWithDistance[]>([]);
   const [filteredFacilities, setFilteredFacilities] = useState<FacilityWithDistance[]>([]);
@@ -38,9 +40,10 @@ export default function MapScreen() {
   const [mapError, setMapError] = useState<string | null>(null);
   const [showList, setShowList] = useState(false);
   const [showDebug, setShowDebug] = useState(false);
+  const [mapInitialized, setMapInitialized] = useState(false);
   
   const mapRef = useRef<any>(null);
-  const { visits } = useVisitStore();
+  const { visits, addToWishlist, removeFromWishlist, isInWishlist } = useVisitStore();
 
   useEffect(() => {
     const filtered = facilities.filter(facility =>
@@ -54,6 +57,37 @@ export default function MapScreen() {
     loadCurrentLocationAndFacilities();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // パラメータが変更された時にマップをフォーカス
+  useEffect(() => {
+    if (params.latitude && params.longitude && mapRef.current && currentLocation && mapInitialized) {
+      const lat = parseFloat(params.latitude);
+      const lng = parseFloat(params.longitude);
+      
+      console.log('🎯 Preparing to focus on location:', { lat, lng, placeId: params.place_id });
+      console.log('✅ Conditions met:', { 
+        hasParams: !!(params.latitude && params.longitude),
+        hasMapRef: !!mapRef.current,
+        hasLocation: !!currentLocation,
+        mapInitialized 
+      });
+      
+      // マップが初期化完了後にフォーカス
+      const timer = setTimeout(() => {
+        console.log('🚀 Calling focusOnLocation');
+        mapRef.current.focusOnLocation(lat, lng, params.place_id);
+      }, 500); // より短い遅延に変更
+      
+      return () => clearTimeout(timer);
+    } else {
+      console.log('⏳ Waiting for conditions:', {
+        hasParams: !!(params.latitude && params.longitude),
+        hasMapRef: !!mapRef.current,
+        hasLocation: !!currentLocation,
+        mapInitialized
+      });
+    }
+  }, [params, currentLocation, mapInitialized]);
 
   const loadCurrentLocationAndFacilities = async () => {
     setLoading(true);
@@ -117,17 +151,33 @@ export default function MapScreen() {
 
 
   const handleAddToWishlist = (facility: FacilityWithDistance) => {
-    Alert.alert(
-      '行きたいリストに追加',
-      `${facility.name}を行きたいリストに追加しますか？`,
-      [
-        { text: 'キャンセル', style: 'cancel' },
-        { text: '追加', onPress: () => {
-          // TODO: Implement wishlist functionality
-          Alert.alert('追加完了', `${facility.name}を行きたいリストに追加しました！`);
-        }},
-      ]
-    );
+    const isInList = isInWishlist(facility.place_id);
+    
+    if (isInList) {
+      Alert.alert(
+        '行きたいリストから削除',
+        `${facility.name}を行きたいリストから削除しますか？`,
+        [
+          { text: 'キャンセル', style: 'cancel' },
+          { text: '削除', style: 'destructive', onPress: () => {
+            removeFromWishlist(facility.place_id);
+            Alert.alert('削除完了', `${facility.name}を行きたいリストから削除しました。`);
+          }},
+        ]
+      );
+    } else {
+      Alert.alert(
+        '行きたいリストに追加',
+        `${facility.name}を行きたいリストに追加しますか？`,
+        [
+          { text: 'キャンセル', style: 'cancel' },
+          { text: '追加', onPress: () => {
+            addToWishlist(facility);
+            Alert.alert('追加完了', `${facility.name}を行きたいリストに追加しました！`);
+          }},
+        ]
+      );
+    }
   };
 
   const handleViewOnMaps = async (facility: FacilityWithDistance) => {
@@ -209,6 +259,11 @@ export default function MapScreen() {
     }
   };
 
+  const handleMapInitialized = () => {
+    console.log('🗺️ Map initialized callback received');
+    setMapInitialized(true);
+  };
+
   const toggleView = () => {
     setShowList(!showList);
   };
@@ -259,11 +314,23 @@ export default function MapScreen() {
 
       <View style={styles.facilityActions}>
         <TouchableOpacity
-          style={styles.actionButton}
+          style={[
+            styles.actionButton,
+            isInWishlist(item.place_id) && styles.wishlistActiveButton
+          ]}
           onPress={() => handleAddToWishlist(item)}
         >
-          <Heart size={16} color="#ef4444" />
-          <Text style={styles.actionButtonText}>行きたい</Text>
+          <Heart 
+            size={16} 
+            color={isInWishlist(item.place_id) ? "#ffffff" : "#ef4444"} 
+            fill={isInWishlist(item.place_id) ? "#ffffff" : "transparent"}
+          />
+          <Text style={[
+            styles.actionButtonText,
+            isInWishlist(item.place_id) && styles.wishlistActiveButtonText
+          ]}>
+            {isInWishlist(item.place_id) ? '追加済み' : '行きたい'}
+          </Text>
         </TouchableOpacity>
         <TouchableOpacity
           style={[styles.actionButton, styles.primaryButton]}
@@ -344,8 +411,10 @@ export default function MapScreen() {
               ref={mapRef}
               currentLocation={currentLocation}
               facilities={filteredFacilities}
+              selectedPlaceId={params.place_id}
               onMarkerPress={handleMarkerPress}
               onError={(errorMessage: string) => setMapError(errorMessage)}
+              onMapInitialized={handleMapInitialized}
               style={styles.map}
             />
           ) : (
@@ -560,6 +629,12 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '500',
     color: '#64748b',
+  },
+  wishlistActiveButton: {
+    backgroundColor: '#ef4444',
+  },
+  wishlistActiveButtonText: {
+    color: '#ffffff',
   },
   primaryButtonText: {
     fontSize: 14,

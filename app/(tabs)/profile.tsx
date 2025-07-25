@@ -5,12 +5,16 @@ import {
   StyleSheet,
   SafeAreaView,
   ScrollView,
+  TouchableOpacity,
+  Alert,
 } from 'react-native';
-import { TrendingUp, Bath, Star, Calendar } from 'lucide-react-native';
+import { TrendingUp, Bath, Star, Calendar, Heart, MapPin, Trash2 } from 'lucide-react-native';
 import { useVisitStore } from '@/store/visitStore';
+import { useRouter } from 'expo-router';
 
 export default function ProfileScreen() {
-  const { visits } = useVisitStore();
+  const { visits, wishlist, removeFromWishlist } = useVisitStore();
+  const router = useRouter();
 
   const totalVisits = visits.length;
   const uniqueBaths = new Set(visits.map(v => v.bathName)).size;
@@ -19,6 +23,31 @@ export default function ProfileScreen() {
     : '0.0';
   const thisMonth = new Date().getMonth();
   const monthlyVisits = visits.filter(v => new Date(v.date).getMonth() === thisMonth).length;
+
+  const handleRemoveFromWishlist = (placeId: string, placeName: string) => {
+    Alert.alert(
+      '行きたいリストから削除',
+      `${placeName}を行きたいリストから削除しますか？`,
+      [
+        { text: 'キャンセル', style: 'cancel' },
+        { text: '削除', style: 'destructive', onPress: () => {
+          removeFromWishlist(placeId);
+          Alert.alert('削除完了', `${placeName}を行きたいリストから削除しました。`);
+        }},
+      ]
+    );
+  };
+
+  const handleWishlistCardPress = (place: any) => {
+    router.push({
+      pathname: '/(tabs)/map',
+      params: {
+        place_id: place.place_id,
+        latitude: place.geometry.location.lat.toString(),
+        longitude: place.geometry.location.lng.toString(),
+      },
+    });
+  };
 
   return (
     <SafeAreaView style={styles.container}>
@@ -63,6 +92,51 @@ export default function ProfileScreen() {
                 実際の実装では、ここに月別の訪問数グラフが表示されます
               </Text>
             </View>
+          </View>
+
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>行きたい場所</Text>
+            {wishlist.length === 0 ? (
+              <View style={styles.emptyWishlist}>
+                <Heart size={48} color="#d1d5db" />
+                <Text style={styles.emptyWishlistText}>行きたい場所はまだ登録されていません</Text>
+                <Text style={styles.emptyWishlistSubtext}>
+                  マップで気になる銭湯を見つけて「行きたい」ボタンをタップしてください
+                </Text>
+              </View>
+            ) : (
+              wishlist.map((place) => (
+                <TouchableOpacity
+                  key={place.place_id}
+                  style={styles.wishlistCard}
+                  onPress={() => handleWishlistCardPress(place)}
+                  activeOpacity={0.7}
+                >
+                  <View style={styles.wishlistHeader}>
+                    <MapPin size={16} color="#ef4444" />
+                    <Text style={styles.wishlistName}>{place.name}</Text>
+                  </View>
+                  <Text style={styles.wishlistAddress}>{place.formatted_address}</Text>
+                  <View style={styles.wishlistDetails}>
+                    <View style={styles.wishlistRating}>
+                      <Star size={14} color="#fbbf24" fill="#fbbf24" />
+                      <Text style={styles.wishlistRatingText}>
+                        {place.rating?.toFixed(1) || 'N/A'}
+                      </Text>
+                    </View>
+                    <TouchableOpacity
+                      style={styles.removeButton}
+                      onPress={(e) => {
+                        e.stopPropagation();
+                        handleRemoveFromWishlist(place.place_id, place.name);
+                      }}
+                    >
+                      <Trash2 size={14} color="#ef4444" />
+                    </TouchableOpacity>
+                  </View>
+                </TouchableOpacity>
+              ))
+            )}
           </View>
 
           <View style={styles.section}>
@@ -215,5 +289,73 @@ const styles = StyleSheet.create({
   recentVisitRatingText: {
     fontSize: 14,
     color: '#64748b',
+  },
+  emptyWishlist: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 40,
+    paddingHorizontal: 20,
+  },
+  emptyWishlistText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#64748b',
+    textAlign: 'center',
+    marginTop: 16,
+    marginBottom: 8,
+  },
+  emptyWishlistSubtext: {
+    fontSize: 14,
+    color: '#94a3b8',
+    textAlign: 'center',
+    lineHeight: 20,
+  },
+  wishlistCard: {
+    backgroundColor: '#ffffff',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  wishlistHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  wishlistName: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#1e293b',
+    marginLeft: 8,
+    flex: 1,
+  },
+  wishlistAddress: {
+    fontSize: 14,
+    color: '#64748b',
+    marginBottom: 12,
+    lineHeight: 20,
+  },
+  wishlistDetails: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  wishlistRating: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  wishlistRatingText: {
+    fontSize: 14,
+    color: '#64748b',
+  },
+  removeButton: {
+    padding: 8,
+    borderRadius: 8,
+    backgroundColor: '#fef2f2',
   },
 });
