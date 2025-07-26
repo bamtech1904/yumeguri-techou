@@ -593,7 +593,6 @@ export default function MapScreen() {
           <Text style={styles.ratingText}>{item.rating?.toFixed(1) || 'N/A'}</Text>
         </View>
         <Text style={styles.distanceText}>{item.distance || ''}</Text>
-        <Text style={styles.priceText}>{placesService.formatPriceLevel(item.price_level)}</Text>
       </View>
 
       <View style={styles.facilityActions}>
@@ -1101,11 +1100,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#64748b',
     marginRight: 16,
-  },
-  priceText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#0ea5e9',
   },
   facilityActions: {
     flexDirection: 'row',

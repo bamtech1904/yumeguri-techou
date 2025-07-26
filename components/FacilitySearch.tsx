@@ -138,7 +138,6 @@ export default function FacilitySearch({ visible, onClose, onSelect }: FacilityS
           <Text style={styles.ratingText}>{item.rating?.toFixed(1) || 'N/A'}</Text>
         </View>
         <Text style={styles.distanceText}>{item.distance || ''}</Text>
-        <Text style={styles.priceText}>{placesService.formatPriceLevel(item.price_level)}</Text>
       </View>
     </TouchableOpacity>
   );
@@ -307,11 +306,6 @@ const styles = StyleSheet.create({
   distanceText: {
     fontSize: 14,
     color: '#64748b',
-  },
-  priceText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#0ea5e9',
   },
   refreshButton: {
     padding: 8,
