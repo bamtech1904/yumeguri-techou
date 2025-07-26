@@ -11,15 +11,21 @@ import {
   ActivityIndicator,
   Linking,
   Platform,
+  Modal,
+  KeyboardAvoidingView,
+  ScrollView,
 } from 'react-native';
 import WebMapView from '@/components/WebMapView';
-import { MapPin, Search, Star, Navigation, Locate, Heart } from 'lucide-react-native';
+import { MapPin, Search, Star, Navigation, Locate, Heart, Plus, Bath, Clock, X, Save, Calendar as CalendarIcon } from 'lucide-react-native';
 import { Place } from '@/types/place';
 import { placesService } from '@/services/placesService';
 import { locationService, LocationCoords } from '@/services/locationService';
 import { useVisitStore } from '@/store/visitStore';
 import ApiDebugInfo from '@/components/ApiDebugInfo';
 import { useLocalSearchParams, useRouter, useFocusEffect } from 'expo-router';
+import FacilitySearch from '@/components/FacilitySearch';
+import PhotoPicker from '@/components/PhotoPicker';
+import DateTimePicker from '@react-native-community/datetimepicker';
 
 interface FacilityWithDistance extends Place {
   distance?: string;
@@ -44,8 +50,27 @@ export default function MapScreen() {
   const [mapInitialized, setMapInitialized] = useState(false);
   const [highlightCleared, setHighlightCleared] = useState(false);
   
+  // 記録追加モーダル関連のstate
+  const [addVisitModalVisible, setAddVisitModalVisible] = useState(false);
+  const [newVisit, setNewVisit] = useState({
+    bathName: '',
+    date: new Date().toISOString().split('T')[0],
+    visitTime: '',
+    startTime: new Date(),
+    endTime: new Date(),
+    rating: 5,
+    comment: '',
+    photos: [] as string[],
+  });
+  const [selectedFacilityForVisit, setSelectedFacilityForVisit] = useState<FacilityWithDistance | null>(null);
+  const [activeTimePicker, setActiveTimePicker] = useState<'start' | 'end' | null>(null);
+  const [showDatePicker, setShowDatePicker] = useState(false);
+  const [tempStartTime, setTempStartTime] = useState(new Date());
+  const [tempEndTime, setTempEndTime] = useState(new Date());
+  const [timeValidationError, setTimeValidationError] = useState<string | null>(null);
+  
   const mapRef = useRef<any>(null);
-  const { visits, addToWishlist, removeFromWishlist, isInWishlist } = useVisitStore();
+  const { visits, addVisit, addToWishlist, removeFromWishlist, isInWishlist } = useVisitStore();
 
   useEffect(() => {
     const filtered = facilities.filter(facility =>
@@ -163,8 +188,27 @@ export default function MapScreen() {
   };
 
   const handleFacilityPress = (facility: FacilityWithDistance) => {
-    // TODO: Navigate to facility details or add to visit
-    console.log('Selected facility:', facility.name);
+    // 選択した施設情報を記録に事前設定
+    setSelectedFacilityForVisit(facility);
+    
+    // 現在時刻を設定
+    const now = new Date();
+    const endTime = new Date(now.getTime() + 60 * 60 * 1000); // 1時間後
+    setTempStartTime(now);
+    setTempEndTime(endTime);
+    
+    // 訪問時間を自動設定
+    const visitTime = `${formatTime(now)}-${formatTime(endTime)}`;
+    
+    setNewVisit(prev => ({
+      ...prev,
+      bathName: facility.name,
+      date: new Date().toISOString().split('T')[0], // 今日の日付をデフォルト設定
+      visitTime: visitTime, // 訪問時間を自動設定
+    }));
+    
+    // 記録追加モーダルを表示
+    setAddVisitModalVisible(true);
   };
 
   const handleMarkerPress = (facility: FacilityWithDistance) => {
@@ -306,21 +350,173 @@ export default function MapScreen() {
     router.replace('/(tabs)/map');
   };
 
+  // 記録追加モーダル関連の関数
+  const formatTime = (date: Date) => {
+    return `${date.getHours()}:${date.getMinutes().toString().padStart(2, '0')}`;
+  };
+
+  const validateTimeRange = (start: Date, end: Date) => {
+    return start.getTime() < end.getTime();
+  };
+
+  const handleTempStartTimeChange = (event: any, selectedTime?: Date) => {
+    if (selectedTime) {
+      setTempStartTime(selectedTime);
+      const errorMessage = !validateTimeRange(selectedTime, tempEndTime) ? 
+        `開始時間は終了時間（${formatTime(tempEndTime)}）より前に設定してください` : null;
+      setTimeValidationError(errorMessage);
+    }
+  };
+
+  const handleTempEndTimeChange = (event: any, selectedTime?: Date) => {
+    if (selectedTime) {
+      setTempEndTime(selectedTime);
+      const errorMessage = !validateTimeRange(tempStartTime, selectedTime) ? 
+        `終了時間は開始時間（${formatTime(tempStartTime)}）より後に設定してください` : null;
+      setTimeValidationError(errorMessage);
+    }
+  };
+
+  const handleTimeConfirm = () => {
+    if (!timeValidationError) {
+      const visitTime = `${formatTime(tempStartTime)}-${formatTime(tempEndTime)}`;
+      console.log('Setting visitTime to:', visitTime); // デバッグ用
+      setNewVisit(prev => ({
+        ...prev,
+        visitTime,
+      }));
+    }
+    setActiveTimePicker(null);
+  };
+
+  const handleTimeCancel = () => {
+    setActiveTimePicker(null);
+    setTimeValidationError(null);
+  };
+
+  const handleTimePickerOpen = (type: 'start' | 'end') => {
+    setTimeValidationError(null);
+    setActiveTimePicker(activeTimePicker === type ? null : type);
+  };
+
+  const handlePhotosChange = (photos: string[]) => {
+    setNewVisit(prev => ({ ...prev, photos }));
+  };
+
+  const handleDateChange = (event: any, selectedDate?: Date) => {
+    setShowDatePicker(false);
+    if (selectedDate) {
+      const dateString = selectedDate.toISOString().split('T')[0];
+      setNewVisit(prev => ({ ...prev, date: dateString }));
+    }
+  };
+
+  const formatDate = (dateString: string) => {
+    const date = new Date(dateString);
+    return `${date.getFullYear()}年${(date.getMonth() + 1).toString().padStart(2, '0')}月${date.getDate().toString().padStart(2, '0')}日`;
+  };
+
+  const handleSaveVisit = () => {
+    console.log('Saving visit with data:', newVisit); // デバッグ用
+    
+    if (!newVisit.bathName?.trim()) {
+      Alert.alert('エラー', '銭湯名を入力してください');
+      return;
+    }
+
+    if (!newVisit.date) {
+      Alert.alert('エラー', '訪問日を選択してください');
+      return;
+    }
+
+    if (!newVisit.visitTime?.trim()) {
+      Alert.alert('エラー', '訪問時間を設定してください\n\n現在の値: ' + (newVisit.visitTime || '未設定'));
+      return;
+    }
+
+    const visitData = {
+      id: Date.now().toString(),
+      date: newVisit.date,
+      bathName: newVisit.bathName,
+      visitTime: newVisit.visitTime,
+      rating: newVisit.rating,
+      comment: newVisit.comment,
+      createdAt: new Date().toISOString(),
+      photos: newVisit.photos,
+      ...(selectedFacilityForVisit && {
+        address: selectedFacilityForVisit.formatted_address,
+        placeId: selectedFacilityForVisit.place_id,
+        coordinates: {
+          latitude: selectedFacilityForVisit.geometry.location.lat,
+          longitude: selectedFacilityForVisit.geometry.location.lng,
+        },
+        phoneNumber: selectedFacilityForVisit.formatted_phone_number,
+        website: selectedFacilityForVisit.website,
+        openingHours: selectedFacilityForVisit.opening_hours,
+        priceLevel: selectedFacilityForVisit.price_level,
+      }),
+    };
+
+    addVisit(visitData);
+    
+    // モーダルを閉じてリセット
+    setAddVisitModalVisible(false);
+    setNewVisit({
+      bathName: '',
+      date: new Date().toISOString().split('T')[0],
+      visitTime: '',
+      startTime: new Date(),
+      endTime: new Date(),
+      rating: 5,
+      comment: '',
+      photos: [],
+    });
+    setSelectedFacilityForVisit(null);
+    setActiveTimePicker(null);
+    setShowDatePicker(false);
+    setTimeValidationError(null);
+    
+    Alert.alert('完了', '記録を追加しました！');
+  };
+
+  const handleCancelVisit = () => {
+    setAddVisitModalVisible(false);
+    setNewVisit({
+      bathName: '',
+      date: new Date().toISOString().split('T')[0],
+      visitTime: '',
+      startTime: new Date(),
+      endTime: new Date(),
+      rating: 5,
+      comment: '',
+      photos: [],
+    });
+    setSelectedFacilityForVisit(null);
+    setActiveTimePicker(null);
+    setShowDatePicker(false);
+    setTimeValidationError(null);
+  };
+
 
   const toggleView = () => {
     setShowList(!showList);
   };
 
-  const renderStars = (rating: number) => {
+  const renderStars = (rating: number, onPress?: (star: number) => void) => {
     return (
       <View style={styles.starsContainer}>
         {[1, 2, 3, 4, 5].map((star) => (
-          <Star
+          <TouchableOpacity
             key={star}
-            size={14}
-            color={star <= rating ? '#fbbf24' : '#d1d5db'}
-            fill={star <= rating ? '#fbbf24' : 'transparent'}
-          />
+            onPress={() => onPress?.(star)}
+            disabled={!onPress}
+          >
+            <Star
+              size={onPress ? 24 : 14}
+              color={star <= rating ? '#fbbf24' : '#d1d5db'}
+              fill={star <= rating ? '#fbbf24' : 'transparent'}
+            />
+          </TouchableOpacity>
         ))}
       </View>
     );
@@ -511,6 +707,218 @@ export default function MapScreen() {
         visible={showDebug} 
         onClose={() => setShowDebug(false)} 
       />
+
+      {/* 記録追加モーダル */}
+      <Modal
+        animationType="slide"
+        transparent={true}
+        visible={addVisitModalVisible}
+        onRequestClose={handleCancelVisit}
+      >
+        <KeyboardAvoidingView 
+          style={styles.modalContainer}
+          behavior="padding"
+          keyboardVerticalOffset={Platform.OS === 'ios' ? -50 : -80}
+        >
+          <View style={styles.modalContent}>
+              <View style={styles.modalHeader}>
+                <TouchableOpacity
+                  style={styles.modalCloseButton}
+                  onPress={handleCancelVisit}
+                >
+                  <X size={24} color="#6b7280" />
+                </TouchableOpacity>
+                <Text style={styles.modalTitle}>記録を追加</Text>
+                <TouchableOpacity
+                  style={styles.modalSaveButton}
+                  onPress={handleSaveVisit}
+                >
+                  <Save size={24} color="#0ea5e9" />
+                </TouchableOpacity>
+              </View>
+
+              <ScrollView 
+                style={styles.modalBody}
+                contentContainerStyle={styles.modalBodyContent}
+                keyboardShouldPersistTaps="handled"
+                showsVerticalScrollIndicator={false}
+                keyboardDismissMode="interactive"
+              >
+              {/* 銭湯名 */}
+              <View style={styles.inputContainer}>
+                <Text style={styles.inputLabel}>銭湯名</Text>
+                <TextInput
+                  style={styles.textInput}
+                  value={newVisit.bathName}
+                  onChangeText={(text) => setNewVisit(prev => ({ ...prev, bathName: text }))}
+                  placeholder="例: 山田湯"
+                />
+                {selectedFacilityForVisit && (
+                  <View style={styles.selectedFacilityContainer}>
+                    <View style={styles.selectedFacilityHeader}>
+                      <MapPin size={16} color="#0ea5e9" />
+                      <Text style={styles.selectedFacilityName}>{selectedFacilityForVisit.name}</Text>
+                    </View>
+                    <Text style={styles.selectedFacilityAddress}>{selectedFacilityForVisit.formatted_address}</Text>
+                  </View>
+                )}
+              </View>
+
+              {/* 訪問日 */}
+              <View style={styles.inputContainer}>
+                <Text style={styles.inputLabel}>訪問日</Text>
+                <TouchableOpacity
+                  style={styles.datePickerButton}
+                  onPress={() => setShowDatePicker(true)}
+                >
+                  <CalendarIcon size={16} color="#0ea5e9" />
+                  <Text style={styles.datePickerButtonText}>
+                    {formatDate(newVisit.date)}
+                  </Text>
+                </TouchableOpacity>
+                {showDatePicker && (
+                  <DateTimePicker
+                    value={new Date(newVisit.date)}
+                    mode="date"
+                    display="default"
+                    onChange={handleDateChange}
+                    maximumDate={new Date()}
+                  />
+                )}
+              </View>
+
+              {/* 訪問時間 */}
+              <View style={styles.inputContainer}>
+                <Text style={styles.inputLabel}>訪問時間</Text>
+                <View style={styles.timeButtonsRow}>
+                  <TouchableOpacity
+                    style={[styles.timePickerButton, { flex: 1 }]}
+                    onPress={() => handleTimePickerOpen('start')}
+                  >
+                    <Clock size={16} color="#0ea5e9" />
+                    <Text style={styles.timePickerButtonText}>
+                      開始: {formatTime(tempStartTime)}
+                    </Text>
+                  </TouchableOpacity>
+                  <Text style={styles.timeSeparator}>-</Text>
+                  <TouchableOpacity
+                    style={[styles.timePickerButton, { flex: 1 }]}
+                    onPress={() => handleTimePickerOpen('end')}
+                  >
+                    <Clock size={16} color="#0ea5e9" />
+                    <Text style={styles.timePickerButtonText}>
+                      終了: {formatTime(tempEndTime)}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+                {activeTimePicker === 'start' && (
+                  <View style={styles.timePickerWrapper}>
+                    <DateTimePicker
+                      value={tempStartTime}
+                      mode="time"
+                      is24Hour={true}
+                      display="spinner"
+                      onChange={handleTempStartTimeChange}
+                      themeVariant="light"
+                      textColor="#1e293b"
+                      style={styles.timePicker}
+                    />
+                    {timeValidationError && (
+                      <Text style={styles.errorText}>{timeValidationError}</Text>
+                    )}
+                    <View style={styles.timePickerButtonsRow}>
+                      <TouchableOpacity
+                        style={styles.timePickerCancelButton}
+                        onPress={handleTimeCancel}
+                      >
+                        <Text style={styles.timePickerCancelButtonText}>キャンセル</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={[
+                          styles.timePickerConfirmButton,
+                          timeValidationError && styles.timePickerConfirmButtonDisabled
+                        ]}
+                        onPress={handleTimeConfirm}
+                        disabled={!!timeValidationError}
+                      >
+                        <Text style={styles.timePickerConfirmButtonText}>決定</Text>
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                )}
+                {activeTimePicker === 'end' && (
+                  <View style={styles.timePickerWrapper}>
+                    <DateTimePicker
+                      value={tempEndTime}
+                      mode="time"
+                      is24Hour={true}
+                      display="spinner"
+                      onChange={handleTempEndTimeChange}
+                      themeVariant="light"
+                      textColor="#1e293b"
+                      style={styles.timePicker}
+                    />
+                    {timeValidationError && (
+                      <Text style={styles.errorText}>{timeValidationError}</Text>
+                    )}
+                    <View style={styles.timePickerButtonsRow}>
+                      <TouchableOpacity
+                        style={styles.timePickerCancelButton}
+                        onPress={handleTimeCancel}
+                      >
+                        <Text style={styles.timePickerCancelButtonText}>キャンセル</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={[
+                          styles.timePickerConfirmButton,
+                          timeValidationError && styles.timePickerConfirmButtonDisabled
+                        ]}
+                        onPress={handleTimeConfirm}
+                        disabled={!!timeValidationError}
+                      >
+                        <Text style={styles.timePickerConfirmButtonText}>決定</Text>
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                )}
+              </View>
+
+              {/* 評価 */}
+              <View style={styles.inputContainer}>
+                <Text style={styles.inputLabel}>評価</Text>
+                {renderStars(newVisit.rating, (star) => 
+                  setNewVisit(prev => ({ ...prev, rating: star }))
+                )}
+              </View>
+
+              {/* コメント */}
+              <View style={[styles.inputContainer, styles.commentInputContainer]}>
+                <Text style={styles.inputLabel}>コメント</Text>
+                <TextInput
+                  style={[styles.textInput, styles.commentInput]}
+                  value={newVisit.comment}
+                  onChangeText={(text) => setNewVisit(prev => ({ ...prev, comment: text }))}
+                  placeholder="感想を入力..."
+                  multiline
+                  numberOfLines={5}
+                  textAlignVertical="top"
+                  returnKeyType="default"
+                  blurOnSubmit={false}
+                />
+              </View>
+
+              {/* 写真 */}
+              <View style={styles.photoSection}>
+                <PhotoPicker
+                  photos={newVisit.photos}
+                  onPhotosChange={handlePhotosChange}
+                  maxPhotos={5}
+                />
+              </View>
+              </ScrollView>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -838,5 +1246,195 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '600',
     color: '#0ea5e9',
+  },
+  // モーダル関連のスタイル
+  modalContainer: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'flex-end',
+  },
+  modalContent: {
+    backgroundColor: '#ffffff',
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    paddingTop: 16,
+    maxHeight: '90%',
+    minHeight: '60%',
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    paddingBottom: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e2e8f0',
+  },
+  modalCloseButton: {
+    padding: 8,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#1e293b',
+  },
+  modalSaveButton: {
+    padding: 8,
+  },
+  modalBody: {
+    flex: 1,
+  },
+  modalBodyContent: {
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    paddingBottom: 20,
+  },
+  inputContainer: {
+    marginBottom: 20,
+  },
+  inputLabel: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#374151',
+    marginBottom: 8,
+  },
+  textInput: {
+    borderWidth: 1,
+    borderColor: '#d1d5db',
+    borderRadius: 8,
+    padding: 12,
+    fontSize: 16,
+    backgroundColor: '#ffffff',
+  },
+  selectedFacilityContainer: {
+    marginTop: 12,
+    padding: 12,
+    backgroundColor: '#f0f9ff',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#0ea5e9',
+  },
+  selectedFacilityHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
+  selectedFacilityName: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#1e293b',
+    marginLeft: 6,
+  },
+  selectedFacilityAddress: {
+    fontSize: 14,
+    color: '#64748b',
+  },
+  datePickerButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 12,
+    backgroundColor: '#f0f9ff',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#0ea5e9',
+    gap: 8,
+  },
+  datePickerButtonText: {
+    fontSize: 16,
+    color: '#1e293b',
+    fontWeight: '500',
+  },
+  timeButtonsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  timePickerButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 12,
+    backgroundColor: '#f0f9ff',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#0ea5e9',
+    gap: 8,
+  },
+  timePickerButtonText: {
+    fontSize: 14,
+    color: '#1e293b',
+    fontWeight: '500',
+  },
+  timeSeparator: {
+    fontSize: 16,
+    color: '#64748b',
+    fontWeight: '500',
+  },
+  timePickerWrapper: {
+    backgroundColor: '#ffffff',
+    borderRadius: 12,
+    padding: 16,
+    marginTop: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    overflow: 'hidden',
+    alignItems: 'center',
+  },
+  timePicker: {
+    width: '100%',
+    maxWidth: '100%',
+    height: 120,
+  },
+  timePickerButtonsRow: {
+    flexDirection: 'row',
+    gap: 12,
+    marginTop: 16,
+  },
+  timePickerCancelButton: {
+    flex: 1,
+    padding: 12,
+    backgroundColor: '#f3f4f6',
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  timePickerConfirmButton: {
+    flex: 1,
+    padding: 12,
+    backgroundColor: '#0ea5e9',
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  timePickerConfirmButtonDisabled: {
+    backgroundColor: '#9ca3af',
+  },
+  timePickerCancelButtonText: {
+    color: '#6b7280',
+    fontSize: 16,
+    fontWeight: '500',
+  },
+  timePickerConfirmButtonText: {
+    color: '#ffffff',
+    fontSize: 16,
+    fontWeight: '500',
+  },
+  commentInput: {
+    height: 120,
+    textAlignVertical: 'top',
+  },
+  errorText: {
+    color: '#dc2626',
+    fontSize: 14,
+    marginTop: 8,
+    textAlign: 'center',
+  },
+  commentInputContainer: {
+    marginBottom: 20,
+  },
+  photoSection: {
+    marginBottom: 20,
   },
 });
