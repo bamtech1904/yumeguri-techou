@@ -104,9 +104,13 @@ export default function MapScreen() {
       
       // マップが初期化完了後にフォーカス
       const timer = setTimeout(() => {
-        console.log('🚀 Calling focusOnLocation');
-        mapRef.current.focusOnLocation(lat, lng, params.place_id);
-      }, 500);
+        if (mapRef.current) {
+          console.log('🚀 Calling focusOnLocation');
+          mapRef.current.focusOnLocation(lat, lng, params.place_id);
+        } else {
+          console.log('❌ mapRef.current still not available after delay');
+        }
+      }, 1000); // 1秒に延長してWebMapViewの完全な初期化を待つ
       
       return () => clearTimeout(timer);
     } else {
@@ -350,6 +354,47 @@ export default function MapScreen() {
     router.replace('/(tabs)/map');
   };
 
+  const handleFacilityCardPress = (facility: FacilityWithDistance) => {
+    console.log('📱 handleFacilityCardPress called for:', facility.name);
+    console.log('🗺️ Map conditions:', {
+      hasMapRef: !!mapRef.current,
+      mapInitialized,
+      showList
+    });
+    
+    // 同じマップ画面にいる場合（リストビューでもマップビューでも）
+    if (showList || (mapRef.current && mapInitialized)) {
+      console.log('🎯 Same screen - switching to map view and focusing');
+      const lat = facility.geometry.location.lat;
+      const lng = facility.geometry.location.lng;
+      
+      // リストビューからマップビューに切り替え
+      setShowList(false);
+      setHighlightCleared(false);
+      
+      // URLパラメータを設定してuseEffectでフォーカス処理を実行
+      router.replace({
+        pathname: '/(tabs)/map',
+        params: {
+          place_id: facility.place_id,
+          latitude: lat.toString(),
+          longitude: lng.toString(),
+        },
+      });
+    } else {
+      console.log('🚀 Navigation to map with params');
+      // 他の画面からの場合はナビゲーション
+      router.push({
+        pathname: '/(tabs)/map',
+        params: {
+          place_id: facility.place_id,
+          latitude: facility.geometry.location.lat.toString(),
+          longitude: facility.geometry.location.lng.toString(),
+        },
+      });
+    }
+  };
+
   // 記録追加モーダル関連の関数
   const formatTime = (date: Date) => {
     return `${date.getHours()}:${date.getMinutes().toString().padStart(2, '0')}`;
@@ -525,7 +570,7 @@ export default function MapScreen() {
   const renderFacilityItem = ({ item }: { item: FacilityWithDistance }) => (
     <TouchableOpacity
       style={styles.facilityCard}
-      onPress={() => handleFacilityPress(item)}
+      onPress={() => handleFacilityCardPress(item)}
     >
       <View style={styles.facilityHeader}>
         <MapPin size={20} color="#0ea5e9" />
@@ -557,7 +602,10 @@ export default function MapScreen() {
             styles.actionButton,
             isInWishlist(item.place_id) && styles.wishlistActiveButton
           ]}
-          onPress={() => handleAddToWishlist(item)}
+          onPress={(e) => {
+            e.stopPropagation();
+            handleAddToWishlist(item);
+          }}
         >
           <Heart 
             size={16} 
@@ -572,11 +620,14 @@ export default function MapScreen() {
           </Text>
         </TouchableOpacity>
         <TouchableOpacity
-          style={[styles.actionButton, styles.primaryButton]}
-          onPress={() => handleViewOnMaps(item)}
+          style={[styles.actionButton, styles.recordButton]}
+          onPress={(e) => {
+            e.stopPropagation();
+            handleFacilityPress(item);
+          }}
         >
-          <Navigation size={16} color="#ffffff" />
-          <Text style={styles.primaryButtonText}>地図で見る</Text>
+          <Plus size={16} color="#ffffff" />
+          <Text style={styles.primaryButtonText}>記録を追加</Text>
         </TouchableOpacity>
       </View>
     </TouchableOpacity>
@@ -1092,6 +1143,9 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '500',
     color: '#ffffff',
+  },
+  recordButton: {
+    backgroundColor: '#10b981',
   },
   headerTop: {
     flexDirection: 'row',
