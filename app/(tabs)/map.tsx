@@ -217,12 +217,18 @@ export default function MapScreen() {
 
   const handleMarkerPress = (facility: FacilityWithDistance) => {
     // マーカーがタップされたときのアクション
+    const isInList = isInWishlist(facility.place_id);
+    
     Alert.alert(
       facility.name,
       `${facility.formatted_address}\n\n距離: ${facility.distance}\n評価: ${facility.rating?.toFixed(1) || 'N/A'}`,
       [
         { text: 'キャンセル', style: 'cancel' },
         { text: '地図で見る', onPress: () => handleViewOnMaps(facility) },
+        { 
+          text: isInList ? '行きたいリストから削除' : '行きたいリストに追加', 
+          onPress: () => handleAddToWishlist(facility) 
+        },
         { text: '記録を追加', onPress: () => handleFacilityPress(facility) },
       ]
     );
