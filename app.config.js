@@ -6,12 +6,12 @@ export default {
     slug: 'yumeguri-techou',
     version: '1.0.0',
     orientation: 'portrait',
-    icon: './assets/images/icon.png',
+    icon: './assets/images/yumeguri-icon.png',
     scheme: 'yumeguri',
     userInterfaceStyle: 'automatic',
     newArchEnabled: false,
     splash: {
-      image: './assets/images/splash.png',
+      image: './assets/images/yumeguri-splash.png',
       resizeMode: 'contain',
       backgroundColor: '#0ea5e9',
     },
@@ -20,7 +20,7 @@ export default {
       bundleIdentifier: IS_DEV
         ? 'com.yumeguri.techou.dev'
         : 'com.yumeguri.techou',
-      buildNumber: '10',
+      buildNumber: '11',
       infoPlist: {
         NSLocationWhenInUseUsageDescription:
           '湯めぐり手帳が周辺の銭湯を検索するために位置情報が必要です。',

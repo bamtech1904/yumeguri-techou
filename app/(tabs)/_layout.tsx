@@ -35,7 +35,7 @@ export default function TabLayout() {
       <Tabs.Screen
         name="map"
         options={{
-          title: 'マップ',
+          title: '検索',
           tabBarIcon: ({ size, color }) => (
             <MapPin size={size} color={color} />
           ),

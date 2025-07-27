@@ -45,7 +45,7 @@ export default function MapScreen() {
   const [mapLoading, setMapLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [mapError, setMapError] = useState<string | null>(null);
-  const [showList, setShowList] = useState(false);
+  const [showList, setShowList] = useState(true);
   const [showDebug, setShowDebug] = useState(false);
   const [mapInitialized, setMapInitialized] = useState(false);
   const [highlightCleared, setHighlightCleared] = useState(false);
