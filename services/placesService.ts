@@ -6,6 +6,7 @@ import {
   PlaceDetailsRequest,
   LocationCoords 
 } from '@/types/place';
+import { cacheManager } from '@/utils/cacheManager';
 
 // Google Places API (New) の設定
 // 本番環境では環境変数やセキュアストレージを使用すること
@@ -14,20 +15,8 @@ const GOOGLE_PLACES_API_KEY = process.env.EXPO_PUBLIC_GOOGLE_PLACES_API_KEY || '
 const PLACES_API_BASE_URL = 'https://places.googleapis.com/v1';
 const CACHE_EXPIRY_TIME = 24 * 60 * 60 * 1000; // 24時間（ミリ秒）
 
-interface CachedPlace {
-  data: Place;
-  timestamp: number;
-}
-
-interface CachedSearchResult {
-  data: Place[];
-  timestamp: number;
-  searchKey: string;
-}
 
 class PlacesService {
-  private placesCache = new Map<string, CachedPlace>();
-  private searchCache = new Map<string, CachedSearchResult>();
 
   // APIキーの検証とデバッグ情報を取得
   validateApiKey(): { isValid: boolean; key: string; issues: string[] } {
@@ -60,7 +49,7 @@ class PlacesService {
       console.warn('Google Places API key issues:', apiValidation.issues);
       console.warn('API key preview:', apiValidation.key);
       console.warn('Using mock data instead');
-      return this.getMockPlaces(location);
+      return await this.getMockPlaces(location);
     }
     
     console.log('🔍 Places API 検索を開始します...');
@@ -68,12 +57,12 @@ class PlacesService {
     console.log('📐 検索範囲:', radius, 'メートル');
     console.log('🔑 APIキー:', apiValidation.key);
 
-    const searchKey = `${location.latitude},${location.longitude},${radius},${keyword || ''}`;
+    const searchKey = `places_search:${location.latitude},${location.longitude},${radius},${keyword || ''}`;
     
-    // キャッシュを最初に確認
-    const cached = this.searchCache.get(searchKey);
-    if (cached && Date.now() - cached.timestamp < CACHE_EXPIRY_TIME) {
-      return cached.data;
+    // cacheManagerを使用してキャッシュを確認
+    const cached = cacheManager.get<Place[]>(searchKey);
+    if (cached) {
+      return cached;
     }
 
     try {
@@ -111,18 +100,14 @@ class PlacesService {
       
       console.log(`📊 合計検索結果: ${uniquePlaces.length}件の施設を発見`);
       
-      // キャッシュに保存
-      this.searchCache.set(searchKey, {
-        data: uniquePlaces,
-        timestamp: Date.now(),
-        searchKey,
-      });
+      // cacheManagerを使用してキャッシュに保存
+      await cacheManager.set(searchKey, uniquePlaces, CACHE_EXPIRY_TIME);
       
       return uniquePlaces;
     } catch (error) {
       console.error('❌ Error searching nearby bathhouses:', error);
       console.error('🔄 Falling back to mock data');
-      return this.getMockPlaces(location);
+      return await this.getMockPlaces(location);
     }
   }
 
@@ -357,10 +342,11 @@ class PlacesService {
       return null;
     }
 
-    // Check cache first
-    const cached = this.placesCache.get(placeId);
-    if (cached && Date.now() - cached.timestamp < CACHE_EXPIRY_TIME) {
-      return cached.data;
+    // cacheManagerを使用してキャッシュを確認
+    const cacheKey = `place_details:${placeId}`;
+    const cached = cacheManager.get<Place>(cacheKey);
+    if (cached) {
+      return cached;
     }
 
     try {
@@ -404,11 +390,8 @@ class PlacesService {
 
       const place: Place = data.result;
 
-      // Cache the result
-      this.placesCache.set(placeId, {
-        data: place,
-        timestamp: Date.now(),
-      });
+      // cacheManagerを使用してキャッシュに保存
+      await cacheManager.set(cacheKey, place, CACHE_EXPIRY_TIME);
 
       return place;
     } catch (error) {
@@ -431,9 +414,16 @@ class PlacesService {
     return `${PLACES_API_BASE_URL}/photo?${queryParams}`;
   }
 
-  private getMockPlaces(location: LocationCoords): Place[] {
+  private async getMockPlaces(location: LocationCoords): Promise<Place[]> {
+    const searchKey = `places_search:${location.latitude},${location.longitude},5000,`;
+    
+    // キャッシュを確認
+    const cached = cacheManager.get<Place[]>(searchKey);
+    if (cached) {
+      return cached;
+    }
     // Mock data for development and fallback
-    return [
+    const mockData = [
       {
         place_id: 'mock_1',
         name: '大江戸温泉物語',
@@ -483,6 +473,10 @@ class PlacesService {
         vicinity: '谷中',
       },
     ];
+    
+    // モックデータもキャッシュに保存
+    await cacheManager.set(searchKey, mockData, CACHE_EXPIRY_TIME);
+    return mockData;
   }
 
   formatPriceLevel(priceLevel?: number): string {
@@ -507,48 +501,18 @@ class PlacesService {
   }
 
   async clearCache(): Promise<void> {
-    this.placesCache.clear();
-    this.searchCache.clear();
-    
-    try {
-      await AsyncStorage.removeItem('places_cache');
-      await AsyncStorage.removeItem('search_cache');
-    } catch (error) {
-      console.error('Error clearing places cache:', error);
-    }
+    // cacheManagerを使用しているため、特別な処理は不要
+    // cacheManagerのclearを呼び出す場合は外部から実行
   }
 
-  // Save cache to persistent storage
+  // 廃止: cacheManagerを使用するため不要
   async saveCacheToStorage(): Promise<void> {
-    try {
-      const placesData = Object.fromEntries(this.placesCache.entries());
-      const searchData = Object.fromEntries(this.searchCache.entries());
-      
-      await AsyncStorage.setItem('places_cache', JSON.stringify(placesData));
-      await AsyncStorage.setItem('search_cache', JSON.stringify(searchData));
-    } catch (error) {
-      console.error('Error saving places cache:', error);
-    }
+    // 廃止されました（cacheManager統合済み）
   }
 
-  // Load cache from persistent storage
+  // 廃止: cacheManagerを使用するため不要
   async loadCacheFromStorage(): Promise<void> {
-    try {
-      const placesData = await AsyncStorage.getItem('places_cache');
-      const searchData = await AsyncStorage.getItem('search_cache');
-      
-      if (placesData) {
-        const parsed = JSON.parse(placesData);
-        this.placesCache = new Map(Object.entries(parsed));
-      }
-      
-      if (searchData) {
-        const parsed = JSON.parse(searchData);
-        this.searchCache = new Map(Object.entries(parsed));
-      }
-    } catch (error) {
-      console.error('Error loading places cache:', error);
-    }
+    // 廃止されました（cacheManager統合済み）
   }
 
 }

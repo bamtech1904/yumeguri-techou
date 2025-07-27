@@ -37,8 +37,13 @@ export class CacheManager {
   };
 
   private constructor() {
-    this.loadCacheFromStorage();
-    this.loadSettings();
+    this.initializeAsync();
+  }
+
+  private async initializeAsync(): Promise<void> {
+    await this.loadCacheFromStorage();
+    await this.loadSettings();
+    await this.loadMetrics();
     this.startAutoCleanup();
   }
 
@@ -133,6 +138,8 @@ export class CacheManager {
   }
 
   getMetrics(): CacheMetrics {
+    // 呼び出されるたびに現在のキャッシュサイズを計算して更新
+    this.metrics.totalSize = this.getCurrentSize();
     return { ...this.metrics };
   }
 
@@ -193,6 +200,8 @@ export class CacheManager {
       if (cacheData) {
         const parsed = JSON.parse(cacheData);
         this.cache = new Map(Object.entries(parsed));
+        // キャッシュ読み込み後にメトリクスを更新
+        this.updateMetrics();
       }
     } catch (error) {
       console.error('Error loading cache from storage:', error);
