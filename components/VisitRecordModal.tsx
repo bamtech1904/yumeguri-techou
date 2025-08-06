@@ -18,6 +18,7 @@ import {
   MapPin,
   Star,
   Calendar as CalendarIcon,
+  X,
 } from 'lucide-react-native';
 import { format } from 'date-fns';
 import FacilitySearch from '@/components/FacilitySearch';
@@ -281,7 +282,15 @@ export default function VisitRecordModal({
         >
           <View style={styles.modalContainer}>
             <View style={styles.modalContent}>
-              <Text style={styles.modalTitle}>{getModalTitle()}</Text>
+              <View style={styles.modalHeader}>
+                <Text style={styles.modalTitle}>{getModalTitle()}</Text>
+                <TouchableOpacity
+                  style={styles.closeButton}
+                  onPress={handleCancel}
+                >
+                  <X size={24} color="#dc2626" />
+                </TouchableOpacity>
+              </View>
 
               <ScrollView
                 style={styles.modalFormContainer}
@@ -582,12 +591,25 @@ const styles = StyleSheet.create({
   modalFormContainer: {
     flex: 1,
   },
+  modalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 24,
+  },
   modalTitle: {
     fontSize: 20,
     fontWeight: '600',
     color: '#1e293b',
-    marginBottom: 24,
+    flex: 1,
     textAlign: 'center',
+  },
+  closeButton: {
+    padding: 8,
+    borderRadius: 20,
+    backgroundColor: '#fef2f2',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   inputContainer: {
     marginBottom: 20,
