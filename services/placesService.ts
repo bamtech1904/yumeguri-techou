@@ -41,7 +41,8 @@ class PlacesService {
   async searchNearbyBathhouses(
     location: LocationCoords,
     radius: number = 10000, // 10km default（拡大して春の湯を探索）
-    keyword?: string
+    keyword?: string,
+    onProgressCallback?: (places: Place[]) => void
   ): Promise<Place[]> {
     const apiValidation = this.validateApiKey();
     
@@ -66,42 +67,77 @@ class PlacesService {
     }
 
     try {
-      // 複数の検索方法を試す
-      console.log('🔍 複数の検索方法で銭湯を探索中...');
+      console.log('🔍 Progressive loading開始...');
       
-      // 複数のText検索クエリで幅広く検索（春の湯を直接検索）
-      const textQueries = ['銭湯', '温泉', 'サウナ', 'スパ', '湯', '風呂', '春の湯'];
-      
-      const searchPromises = [
-        this.searchWithPlacesApi(location, radius, keyword),
-        ...textQueries.map(query => this.searchWithTextQuery(location, query))
-      ];
-      
-      const results = await Promise.allSettled(searchPromises);
-
       let allPlaces: Place[] = [];
       
-      // 各検索結果を処理
-      results.forEach((result, index) => {
-        const searchType = index === 0 ? 'Nearby' : `Text(${textQueries[index - 1]})`;
+      // Phase 1: 優先度の高いNearby検索を最初に実行
+      console.log('🎯 Phase 1: Nearby検索実行中...');
+      try {
+        const nearbyPlaces = await this.searchWithPlacesApi(location, radius, keyword);
+        allPlaces.push(...nearbyPlaces);
         
+        // 最初の結果をすぐに表示
+        if (nearbyPlaces.length > 0 && onProgressCallback) {
+          const uniquePlaces = this.removeDuplicates(allPlaces);
+          console.log(`⚡ Phase 1完了: ${uniquePlaces.length}件を即座に表示`);
+          onProgressCallback(uniquePlaces);
+        }
+      } catch (error) {
+        console.warn('❌ Nearby検索失敗:', error);
+      }
+      
+      // Phase 2: 重要なText検索を追加実行（段階的に表示）
+      const priorityQueries = ['銭湯', '温泉', 'サウナ'];
+      for (const query of priorityQueries) {
+        try {
+          console.log(`🔍 Phase 2: "${query}"検索実行中...`);
+          const textPlaces = await this.searchWithTextQuery(location, query);
+          allPlaces.push(...textPlaces);
+          
+          // 追加結果があれば段階的に更新
+          if (textPlaces.length > 0 && onProgressCallback) {
+            const uniquePlaces = this.removeDuplicates(allPlaces);
+            console.log(`⚡ "${query}"検索完了: 累計${uniquePlaces.length}件`);
+            onProgressCallback(uniquePlaces);
+          }
+        } catch (error) {
+          console.warn(`❌ "${query}"検索失敗:`, error);
+        }
+      }
+      
+      // Phase 3: 残りの検索を並列実行（結果があれば最終更新）
+      const remainingQueries = ['スパ', '湯', '風呂', '春の湯'];
+      console.log('🔍 Phase 3: 残りの検索を並列実行...');
+      
+      const remainingPromises = remainingQueries.map(query => 
+        this.searchWithTextQuery(location, query).catch(error => {
+          console.warn(`❌ "${query}"検索失敗:`, error);
+          return [];
+        })
+      );
+      
+      const remainingResults = await Promise.allSettled(remainingPromises);
+      remainingResults.forEach((result, index) => {
         if (result.status === 'fulfilled') {
           allPlaces.push(...result.value);
-          console.log(`✅ ${searchType}検索成功: ${result.value.length}件`);
-        } else {
-          console.warn(`❌ ${searchType}検索失敗:`, result.reason);
+          console.log(`✅ "${remainingQueries[index]}"検索完了: ${result.value.length}件`);
         }
       });
       
-      // 重複除去
-      const uniquePlaces = allPlaces.filter((place, index, self) => 
-        index === self.findIndex(p => p.place_id === place.place_id)
-      );
+      // 最終結果
+      const uniquePlaces = this.removeDuplicates(allPlaces);
+      console.log(`📊 最終検索結果: ${uniquePlaces.length}件の施設を発見`);
       
-      console.log(`📊 合計検索結果: ${uniquePlaces.length}件の施設を発見`);
+      // 最終結果をProgressiveに更新（残りの検索で新しい結果があった場合）
+      if (onProgressCallback) {
+        onProgressCallback(uniquePlaces);
+      }
       
-      // cacheManagerを使用してキャッシュに保存
-      await cacheManager.set(searchKey, uniquePlaces, CACHE_EXPIRY_TIME);
+      // キャッシュに非同期で保存（UI描画をブロックしない）
+      setImmediate(async () => {
+        await cacheManager.set(searchKey, uniquePlaces, CACHE_EXPIRY_TIME);
+      });
       
       return uniquePlaces;
     } catch (error) {
@@ -111,11 +147,17 @@ class PlacesService {
     }
   }
 
+  private removeDuplicates(places: Place[]): Place[] {
+    return places.filter((place, index, self) => 
+      index === self.findIndex(p => p.place_id === place.place_id)
+    );
+  }
+
   private async searchWithPlacesApi(location: LocationCoords, radius: number, keyword?: string): Promise<Place[]> {
     const requestBody: any = {
       // Places API (New) でサポートされているタイプのみ使用
       includedTypes: ['spa'],
-      maxResultCount: 20, // Places API (New) の上限
+      maxResultCount: 10, // 20 → 10に削減（高速化）
       locationRestriction: {
         circle: {
           center: { 
@@ -139,6 +181,10 @@ class PlacesService {
     console.log('🌐 Places API リクエストURL:', requestUrl);
     console.log('📦 リクエストボディ:', JSON.stringify(requestBody, null, 2));
 
+    // タイムアウト設定で高速化
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 5000); // 5秒でタイムアウト
+    
     const response = await fetch(requestUrl, {
       method: 'POST',
       headers: {
@@ -147,7 +193,10 @@ class PlacesService {
         'X-Goog-FieldMask': 'places.displayName,places.formattedAddress,places.location,places.rating,places.userRatingCount,places.priceLevel,places.id,places.types',
       },
       body: JSON.stringify(requestBody),
+      signal: controller.signal,
     });
+    
+    clearTimeout(timeoutId);
 
     console.log('📡 レスポンスステータス:', response.status);
     console.log('📡 レスポンスヘッダー:', Object.fromEntries(response.headers.entries()));
@@ -189,13 +238,17 @@ class PlacesService {
         },
       },
       languageCode: 'ja',
-      maxResultCount: 20,
+      maxResultCount: 10, // 20 → 10に削減（高速化）
     };
 
     const requestUrl = `${PLACES_API_BASE_URL}/places:searchText`;
     console.log('🔤 Text検索URL:', requestUrl);
     console.log('📦 Text検索ボディ:', JSON.stringify(requestBody, null, 2));
 
+    // タイムアウト設定で高速化
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 5000); // 5秒でタイムアウト
+    
     const response = await fetch(requestUrl, {
       method: 'POST',
       headers: {
@@ -204,7 +257,10 @@ class PlacesService {
         'X-Goog-FieldMask': 'places.displayName,places.formattedAddress,places.location,places.rating,places.userRatingCount,places.priceLevel,places.id,places.types',
       },
       body: JSON.stringify(requestBody),
+      signal: controller.signal,
     });
+    
+    clearTimeout(timeoutId);
 
     console.log('📡 Text検索レスポンスステータス:', response.status);
 
@@ -255,84 +311,64 @@ class PlacesService {
     const name = place.name.toLowerCase();
     const address = place.formatted_address.toLowerCase();
     
-    // 除外キーワード
-    const excludeKeywords = [
-      // フィットネス・ジム関連
-      'フィットネス', 'fitness', 'gym', 'ジム', 'ワークアウト', 'workout',
-      'エニタイム', 'anytime', 'ライザップ', 'rizap', 'ゴールドジム', 'goldsgym',
-      'joyfit', 'ジョイフィット', 'chocozap', 'chocoざっぷ',
-      
-      // マッサージ専門店
-      'タイ古式マッサージ', 'アロマ', 'リラクゼーション', 'エステ',
-      'マッサージ店', 'マッサージサロン',
-      
-      // その他
-      '病院', 'hospital', '学校', 'school', '駅', 'station', '空港', 'airport'
+    // 高優先度包含キーワード（早期リターン）
+    const highPriorityIncludeKeywords = [
+      '銭湯', '温泉', 'サウナ', 'スーパー銭湯', '健康ランド',
+      'spa', 'onsen', 'sento', '春の湯'
     ];
     
-    // 除外キーワードチェック
-    const hasExcludeKeyword = excludeKeywords.some(keyword => 
-      name.includes(keyword) || address.includes(keyword)
-    );
+    // 高優先度キーワードが見つかったら即座にtrue
+    for (const keyword of highPriorityIncludeKeywords) {
+      if (name.includes(keyword) || address.includes(keyword)) {
+        return true;
+      }
+    }
     
-    if (hasExcludeKeyword) {
+    // 除外キーワード（最適化済み）
+    const excludeKeywords = [
+      'フィットネス', 'fitness', 'gym', 'ジム', 
+      'エニタイム', 'ライザップ', 'ゴールドジム',
+      'マッサージ店', 'エステ', '病院', '学校'
+    ];
+    
+    // 除外キーワードチェック（早期リターン）
+    for (const keyword of excludeKeywords) {
+      if (name.includes(keyword) || address.includes(keyword)) {
+        return false;
+      }
+    }
+    
+    // 中優先度包含キーワード
+    const mediumPriorityIncludeKeywords = [
+      '湯', '風呂', '浴場', 'bath', '入浴', '湯屋', 
+      '岩盤浴', '天然温泉', '露天風呂', '大浴場'
+    ];
+    
+    // 中優先度キーワードチェック
+    for (const keyword of mediumPriorityIncludeKeywords) {
+      if (name.includes(keyword) || address.includes(keyword)) {
+        return true;
+      }
+    }
+    
+    // タイプベースの高速チェック
+    const problematicTypes = ['gym', 'fitness_center', 'beauty_salon'];
+    if (place.types.some(type => problematicTypes.includes(type))) {
       return false;
     }
     
-    // 包含キーワード
-    const includeKeywords = [
-      '銭湯', '温泉', 'サウナ', '湯', '風呂', '浴場', 'バス', 'bath',
-      '入浴', '湯屋', 'spa', 'onsen', 'sento', '浴室', '浴槽',
-      '健康ランド', 'スーパー銭湯', '入浴施設', '日帰り温泉',
-      '岩盤浴', '炭酸泉', '天然温泉', '人工温泉', '療養泉',
-      'ゆ', 'yu', '湯の', '湯乃', '湯之', 'おふろ', 'お風呂',
-      'せんとう', 'おんせん', 'サウナー', 'ととのう', '湯処', '湯どころ',
-      'トレンド', 'trend', '春の湯', 'アサヒ', 'asahi', '21',
-      'FLOOBA', 'flooba', 'フローバ', '春', 'haru',
-      '露天風呂', '内湯', '大浴場', '家族風呂', '貸切風呂', '混浴',
-      '源泉', 'かけ流し', '掛け流し', '循環', '加水', '加温',
-      'ドライサウナ', 'スチームサウナ', 'ミストサウナ', '水風呂', '外気浴',
-      'ロウリュ', 'アウフグース', 'セルフロウリュ',
-      'wellness', 'ウェルネス', '癒し', '疲労回復', 'デトックス', '血行促進', '新陳代謝'
-    ];
-    
-    const hasIncludeKeyword = includeKeywords.some(keyword => 
-      name.includes(keyword) || address.includes(keyword)
-    );
-    
-    if (hasIncludeKeyword) {
+    // 許可されたタイプの場合はtrue
+    const allowedTypes = ['spa', 'health', 'sauna', 'public_bath'];
+    if (place.types.some(type => allowedTypes.includes(type))) {
       return true;
     }
-    
-    // タイプベースのチェック
-    const allowedTypes = ['spa', 'health', 'establishment', 'point_of_interest'];
-    const problematicTypes = ['gym', 'fitness_center', 'beauty_salon', 'nail_salon'];
     
     // マッサージ専門店の除外
-    const hasBathhouseTypes = place.types.some(type => 
-      ['sauna', 'public_bath'].includes(type)
-    );
-    const hasMassageOnly = place.types.includes('massage') && !hasBathhouseTypes;
-    
-    if (hasMassageOnly && !hasIncludeKeyword) {
+    if (place.types.includes('massage')) {
       return false;
     }
     
-    const hasProblematicType = place.types.some(type => problematicTypes.includes(type));
-    if (hasProblematicType) {
-      return false;
-    }
-    
-    const hasAllowedType = place.types.some(type => allowedTypes.includes(type));
-    if (hasAllowedType && !hasProblematicType) {
-      return true;
-    }
-    
-    // フォールバック
-    if (!hasProblematicType) {
-      return true;
-    }
-    
+    // デフォルトはfalse（確実な施設のみ）
     return false;
   }
 

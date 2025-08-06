@@ -140,11 +140,48 @@ export default function MapScreen() {
     setError(null);
     
     try {
+      console.log('🗺️ マップ画面でProgressive Loading開始...');
       const location = await locationService.getCurrentLocation();
       setCurrentLocation(location);
       
-      const places = await placesService.searchNearbyBathhouses(location, 5000, searchQuery);
+      // Progressive Loading コールバック関数
+      const onProgressUpdate = (places: Place[]) => {
+        const facilitiesWithDistance = places.map(place => {
+          const distanceKm = locationService.calculateDistance(
+            location.latitude,
+            location.longitude,
+            place.geometry.location.lat,
+            place.geometry.location.lng
+          );
+          
+          // Check if this facility has been visited
+          const isVisited = visits.some(visit => 
+            visit.bathName === place.name || visit.address === place.formatted_address
+          );
+          
+          return {
+            ...place,
+            distance: locationService.formatDistance(distanceKm),
+            distanceKm,
+            isVisited,
+          };
+        }).sort((a, b) => (a.distanceKm || 0) - (b.distanceKm || 0));
+        
+        // 段階的にマップとリストを更新
+        setFacilities(facilitiesWithDistance);
+        setFilteredFacilities(facilitiesWithDistance);
+        console.log(`🗺️ マップ更新: ${facilitiesWithDistance.length}件表示`);
+      };
       
+      // Progressive Loading機能付きで検索実行
+      const places = await placesService.searchNearbyBathhouses(
+        location, 
+        5000, 
+        searchQuery,
+        onProgressUpdate
+      );
+      
+      // 最終結果も処理（Progressive更新で既に表示済みだが念のため）
       const facilitiesWithDistance = places.map(place => {
         const distanceKm = locationService.calculateDistance(
           location.latitude,
@@ -168,6 +205,7 @@ export default function MapScreen() {
       
       setFacilities(facilitiesWithDistance);
       setFilteredFacilities(facilitiesWithDistance);
+      console.log(`🗺️ マップ最終更新: ${facilitiesWithDistance.length}件`);
     } catch (error) {
       console.error('Error loading location and facilities:', error);
       setError('周辺の銭湯を検索できませんでした。位置情報の許可を確認してください。');

@@ -1,6 +1,7 @@
 import * as Location from 'expo-location';
 import { Alert, Linking } from 'react-native';
 import { LocationPermissionStatus } from '@/types/place';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export interface LocationCoords {
   latitude: number;
@@ -10,6 +11,8 @@ export interface LocationCoords {
 
 class LocationService {
   private locationSubscription: Location.LocationSubscription | null = null;
+  private static readonly CACHE_KEY = 'cached_location';
+  private static readonly CACHE_EXPIRY = 10 * 60 * 1000; // 10分間有効
 
   async requestLocationPermission(): Promise<LocationPermissionStatus> {
     try {
@@ -29,7 +32,16 @@ class LocationService {
     }
   }
 
-  async getCurrentLocation(): Promise<LocationCoords> {
+  async getCurrentLocation(useCache: boolean = true): Promise<LocationCoords> {
+    // キャッシュされた位置情報を確認（高速化）
+    if (useCache) {
+      const cachedLocation = await this.getCachedLocation();
+      if (cachedLocation) {
+        console.log('⚡ キャッシュされた位置情報を使用');
+        return cachedLocation;
+      }
+    }
+
     const permission = await this.requestLocationPermission();
     
     if (!permission.granted) {
@@ -40,18 +52,33 @@ class LocationService {
     }
 
     try {
+      console.log('📍 GPS位置情報を取得中...');
       const location = await Location.getCurrentPositionAsync({
-        accuracy: Location.Accuracy.High,
-        timeInterval: 10000,
-        distanceInterval: 10,
+        accuracy: Location.Accuracy.Balanced, // High → Balanced（高速化）
+        timeInterval: 3000, // 10000ms → 3000ms（高速化）
+        distanceInterval: 50, // 10m → 50m（高速化）
       });
 
-      return {
+      const coords = {
         latitude: location.coords.latitude,
         longitude: location.coords.longitude,
         accuracy: location.coords.accuracy || undefined,
       };
+
+      // 位置情報をキャッシュに保存
+      await this.cacheLocation(coords);
+      
+      return coords;
     } catch (error) {
+      console.warn('❌ GPS取得失敗、前回の位置情報を確認中...', error);
+      
+      // GPS失敗時は前回の位置情報を使用
+      const cachedLocation = await this.getCachedLocation();
+      if (cachedLocation) {
+        console.log('⚡ 前回の位置情報を使用してフォールバック');
+        return cachedLocation;
+      }
+      
       throw new Error(`位置情報の取得に失敗しました: ${error}`);
     }
   }
@@ -136,6 +163,40 @@ class LocationService {
       return `${Math.round(distanceKm * 1000)}m`;
     } else {
       return `${distanceKm.toFixed(1)}km`;
+    }
+  }
+
+  private async getCachedLocation(): Promise<LocationCoords | null> {
+    try {
+      const cached = await AsyncStorage.getItem(LocationService.CACHE_KEY);
+      if (!cached) return null;
+
+      const { location, timestamp } = JSON.parse(cached);
+      const now = Date.now();
+      
+      // キャッシュが有効期限内かチェック
+      if (now - timestamp < LocationService.CACHE_EXPIRY) {
+        return location;
+      }
+      
+      // 期限切れの場合は削除
+      await AsyncStorage.removeItem(LocationService.CACHE_KEY);
+      return null;
+    } catch (error) {
+      console.warn('位置情報キャッシュの読み込みに失敗:', error);
+      return null;
+    }
+  }
+
+  private async cacheLocation(location: LocationCoords): Promise<void> {
+    try {
+      const cacheData = {
+        location,
+        timestamp: Date.now(),
+      };
+      await AsyncStorage.setItem(LocationService.CACHE_KEY, JSON.stringify(cacheData));
+    } catch (error) {
+      console.warn('位置情報のキャッシュに失敗:', error);
     }
   }
 }
