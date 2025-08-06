@@ -321,10 +321,8 @@ export default function CalendarScreen() {
   };
 
   const handleCommentFocus = () => {
-    // コメント入力時にScrollViewを最下部にスクロール
-    setTimeout(() => {
-      scrollViewRef?.scrollToEnd({ animated: true });
-    }, 100);
+    // コメント入力時のスクロール処理を削除
+    // KeyboardAvoidingViewで自動的に調整されるようにする
   };
 
   const handlePhotosChange = (photos: string[]) => {
@@ -485,11 +483,12 @@ export default function CalendarScreen() {
         visible={modalVisible && !facilitySearchVisible}
         onRequestClose={() => setModalVisible(false)}
       >
-        <View style={styles.modalOverlay}>
-          <KeyboardAvoidingView
-            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-            style={styles.modalContent}
-          >
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={styles.modalOverlay}
+        >
+          <View style={styles.modalContainer}>
+            <View style={styles.modalContent}>
             <Text style={styles.modalTitle}>
               {selectedDate
                 ? format(new Date(selectedDate), 'yyyy年MM月dd日')
@@ -502,7 +501,7 @@ export default function CalendarScreen() {
               style={styles.modalFormContainer}
               keyboardShouldPersistTaps="handled"
               showsVerticalScrollIndicator={false}
-              contentContainerStyle={{ paddingBottom: 30 }}
+              contentContainerStyle={{ paddingBottom: 30, flexGrow: 1 }}
             >
               <View style={styles.inputContainer}>
                 <Text style={styles.inputLabel}>銭湯名</Text>
@@ -730,8 +729,9 @@ export default function CalendarScreen() {
                 </TouchableOpacity>
               </View>
             </ScrollView>
-          </KeyboardAvoidingView>
-        </View>
+            </View>
+          </View>
+        </KeyboardAvoidingView>
       </Modal>
 
       <FacilitySearch
@@ -944,17 +944,20 @@ const styles = StyleSheet.create({
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
+  },
+  modalContainer: {
+    flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
+    padding: 20,
   },
   modalContent: {
     backgroundColor: '#ffffff',
     borderRadius: 20,
     padding: 24,
-    margin: 20,
-    width: '90%',
+    width: '100%',
     maxWidth: 400,
-    maxHeight: '85%',
+    maxHeight: '90%',
     flex: 1,
   },
   modalFormContainer: {

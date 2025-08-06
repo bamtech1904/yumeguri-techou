@@ -129,3 +129,24 @@ pnpm build:web
 - Advanced statistics and analytics
 - Badge system and gamification
 - Push notifications
+
+## Claude Code Guidelines
+
+### Language Settings
+- **Default Language**: All responses should be in Japanese (日本語) unless specifically requested otherwise
+- **Code Comments**: Write code comments in Japanese when adding new functionality
+- **Error Messages**: Provide error explanations in Japanese
+
+### Problem-Solving Approach
+- **Complex Issues**: When encountering complex problems or errors, consult with gemini-cli using the mcp__gemini-cli__geminiChat tool for accurate analysis and solutions
+- **Technical Debugging**: Leverage gemini-cli's analytical capabilities for:
+  - Layout and styling issues
+  - Component architecture problems
+  - React Native specific challenges
+  - Build and configuration errors
+- **Collaboration**: Always acknowledge gemini-cli's contributions when it helps solve problems
+
+### Development Workflow
+- Use gemini-cli consultation for architectural decisions
+- Validate solutions with gemini-cli before implementing complex changes
+- Refer to gemini-cli for best practices in React Native development
