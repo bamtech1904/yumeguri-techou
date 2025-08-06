@@ -25,6 +25,7 @@ import ApiDebugInfo from '@/components/ApiDebugInfo';
 import { useLocalSearchParams, useRouter, useFocusEffect } from 'expo-router';
 import FacilitySearch from '@/components/FacilitySearch';
 import PhotoPicker from '@/components/PhotoPicker';
+import VisitRecordModal, { VisitData } from '@/components/VisitRecordModal';
 import DateTimePicker from '@react-native-community/datetimepicker';
 
 interface FacilityWithDistance extends Place {
@@ -52,22 +53,7 @@ export default function MapScreen() {
   
   // 記録追加モーダル関連のstate
   const [addVisitModalVisible, setAddVisitModalVisible] = useState(false);
-  const [newVisit, setNewVisit] = useState({
-    bathName: '',
-    date: new Date().toISOString().split('T')[0],
-    visitTime: '',
-    startTime: new Date(),
-    endTime: new Date(),
-    rating: 5,
-    comment: '',
-    photos: [] as string[],
-  });
   const [selectedFacilityForVisit, setSelectedFacilityForVisit] = useState<FacilityWithDistance | null>(null);
-  const [activeTimePicker, setActiveTimePicker] = useState<'start' | 'end' | null>(null);
-  const [showDatePicker, setShowDatePicker] = useState(false);
-  const [tempStartTime, setTempStartTime] = useState(new Date());
-  const [tempEndTime, setTempEndTime] = useState(new Date());
-  const [timeValidationError, setTimeValidationError] = useState<string | null>(null);
   
   const mapRef = useRef<any>(null);
   const { visits, addVisit, addToWishlist, removeFromWishlist, isInWishlist } = useVisitStore();
@@ -191,29 +177,6 @@ export default function MapScreen() {
     }
   };
 
-  const handleFacilityPress = (facility: FacilityWithDistance) => {
-    // 選択した施設情報を記録に事前設定
-    setSelectedFacilityForVisit(facility);
-    
-    // 現在時刻を設定
-    const now = new Date();
-    const endTime = new Date(now.getTime() + 60 * 60 * 1000); // 1時間後
-    setTempStartTime(now);
-    setTempEndTime(endTime);
-    
-    // 訪問時間を自動設定
-    const visitTime = `${formatTime(now)}-${formatTime(endTime)}`;
-    
-    setNewVisit(prev => ({
-      ...prev,
-      bathName: facility.name,
-      date: new Date().toISOString().split('T')[0], // 今日の日付をデフォルト設定
-      visitTime: visitTime, // 訪問時間を自動設定
-    }));
-    
-    // 記録追加モーダルを表示
-    setAddVisitModalVisible(true);
-  };
 
   const handleMarkerPress = (facility: FacilityWithDistance) => {
     // マーカーがタップされたときのアクション
@@ -401,151 +364,21 @@ export default function MapScreen() {
     }
   };
 
-  // 記録追加モーダル関連の関数
-  const formatTime = (date: Date) => {
-    return `${date.getHours()}:${date.getMinutes().toString().padStart(2, '0')}`;
-  };
-
-  const validateTimeRange = (start: Date, end: Date) => {
-    return start.getTime() < end.getTime();
-  };
-
-  const handleTempStartTimeChange = (event: any, selectedTime?: Date) => {
-    if (selectedTime) {
-      setTempStartTime(selectedTime);
-      const errorMessage = !validateTimeRange(selectedTime, tempEndTime) ? 
-        `開始時間は終了時間（${formatTime(tempEndTime)}）より前に設定してください` : null;
-      setTimeValidationError(errorMessage);
-    }
-  };
-
-  const handleTempEndTimeChange = (event: any, selectedTime?: Date) => {
-    if (selectedTime) {
-      setTempEndTime(selectedTime);
-      const errorMessage = !validateTimeRange(tempStartTime, selectedTime) ? 
-        `終了時間は開始時間（${formatTime(tempStartTime)}）より後に設定してください` : null;
-      setTimeValidationError(errorMessage);
-    }
-  };
-
-  const handleTimeConfirm = () => {
-    if (!timeValidationError) {
-      const visitTime = `${formatTime(tempStartTime)}-${formatTime(tempEndTime)}`;
-      console.log('Setting visitTime to:', visitTime); // デバッグ用
-      setNewVisit(prev => ({
-        ...prev,
-        visitTime,
-      }));
-    }
-    setActiveTimePicker(null);
-  };
-
-  const handleTimeCancel = () => {
-    setActiveTimePicker(null);
-    setTimeValidationError(null);
-  };
-
-  const handleTimePickerOpen = (type: 'start' | 'end') => {
-    setTimeValidationError(null);
-    setActiveTimePicker(activeTimePicker === type ? null : type);
-  };
-
-  const handlePhotosChange = (photos: string[]) => {
-    setNewVisit(prev => ({ ...prev, photos }));
-  };
-
-  const handleDateChange = (event: any, selectedDate?: Date) => {
-    setShowDatePicker(false);
-    if (selectedDate) {
-      const dateString = selectedDate.toISOString().split('T')[0];
-      setNewVisit(prev => ({ ...prev, date: dateString }));
-    }
-  };
-
-  const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
-    return `${date.getFullYear()}年${(date.getMonth() + 1).toString().padStart(2, '0')}月${date.getDate().toString().padStart(2, '0')}日`;
-  };
-
-  const handleSaveVisit = () => {
-    console.log('Saving visit with data:', newVisit); // デバッグ用
-    
-    if (!newVisit.bathName?.trim()) {
-      Alert.alert('エラー', '銭湯名を入力してください');
-      return;
-    }
-
-    if (!newVisit.date) {
-      Alert.alert('エラー', '訪問日を選択してください');
-      return;
-    }
-
-    if (!newVisit.visitTime?.trim()) {
-      Alert.alert('エラー', '訪問時間を設定してください\n\n現在の値: ' + (newVisit.visitTime || '未設定'));
-      return;
-    }
-
-    const visitData = {
-      id: Date.now().toString(),
-      date: newVisit.date,
-      bathName: newVisit.bathName,
-      visitTime: newVisit.visitTime,
-      rating: newVisit.rating,
-      comment: newVisit.comment,
-      createdAt: new Date().toISOString(),
-      photos: newVisit.photos,
-      ...(selectedFacilityForVisit && {
-        address: selectedFacilityForVisit.formatted_address,
-        placeId: selectedFacilityForVisit.place_id,
-        coordinates: {
-          latitude: selectedFacilityForVisit.geometry.location.lat,
-          longitude: selectedFacilityForVisit.geometry.location.lng,
-        },
-        phoneNumber: selectedFacilityForVisit.formatted_phone_number,
-        website: selectedFacilityForVisit.website,
-        openingHours: selectedFacilityForVisit.opening_hours,
-        priceLevel: selectedFacilityForVisit.price_level,
-      }),
-    };
-
-    addVisit(visitData);
-    
-    // モーダルを閉じてリセット
-    setAddVisitModalVisible(false);
-    setNewVisit({
-      bathName: '',
-      date: new Date().toISOString().split('T')[0],
-      visitTime: '',
-      startTime: new Date(),
-      endTime: new Date(),
-      rating: 5,
-      comment: '',
-      photos: [],
-    });
-    setSelectedFacilityForVisit(null);
-    setActiveTimePicker(null);
-    setShowDatePicker(false);
-    setTimeValidationError(null);
-    
-    Alert.alert('完了', '記録を追加しました！');
+  // 記録追加関連の関数
+  const handleFacilityPress = (facility: FacilityWithDistance) => {
+    setSelectedFacilityForVisit(facility);
+    setAddVisitModalVisible(true);
   };
 
   const handleCancelVisit = () => {
     setAddVisitModalVisible(false);
-    setNewVisit({
-      bathName: '',
-      date: new Date().toISOString().split('T')[0],
-      visitTime: '',
-      startTime: new Date(),
-      endTime: new Date(),
-      rating: 5,
-      comment: '',
-      photos: [],
-    });
     setSelectedFacilityForVisit(null);
-    setActiveTimePicker(null);
-    setShowDatePicker(false);
-    setTimeValidationError(null);
+  };
+
+  const handleSaveVisit = (visitData: VisitData) => {
+    addVisit(visitData);
+    setSelectedFacilityForVisit(null);
+    Alert.alert('完了', '記録を追加しました！');
   };
 
 
@@ -659,12 +492,14 @@ export default function MapScreen() {
                 {showList ? '地図' : 'リスト'}
               </Text>
             </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.debugButton}
-              onPress={() => setShowDebug(true)}
-            >
-              <Text style={styles.debugButtonText}>🔧</Text>
-            </TouchableOpacity>
+            {__DEV__ && (
+              <TouchableOpacity
+                style={styles.debugButton}
+                onPress={() => setShowDebug(true)}
+              >
+                <Text style={styles.debugButtonText}>🔧</Text>
+              </TouchableOpacity>
+            )}
           </View>
         </View>
         <View style={styles.searchContainer}>
@@ -764,217 +599,14 @@ export default function MapScreen() {
         onClose={() => setShowDebug(false)} 
       />
 
-      {/* 記録追加モーダル */}
-      <Modal
-        animationType="slide"
-        transparent={true}
+      <VisitRecordModal
         visible={addVisitModalVisible}
-        onRequestClose={handleCancelVisit}
-      >
-        <KeyboardAvoidingView 
-          style={styles.modalContainer}
-          behavior="padding"
-          keyboardVerticalOffset={Platform.OS === 'ios' ? -50 : -80}
-        >
-          <View style={styles.modalContent}>
-              <View style={styles.modalHeader}>
-                <TouchableOpacity
-                  style={styles.modalCloseButton}
-                  onPress={handleCancelVisit}
-                >
-                  <X size={24} color="#6b7280" />
-                </TouchableOpacity>
-                <Text style={styles.modalTitle}>記録を追加</Text>
-                <TouchableOpacity
-                  style={styles.modalSaveButton}
-                  onPress={handleSaveVisit}
-                >
-                  <Save size={24} color="#0ea5e9" />
-                </TouchableOpacity>
-              </View>
-
-              <ScrollView 
-                style={styles.modalBody}
-                contentContainerStyle={styles.modalBodyContent}
-                keyboardShouldPersistTaps="handled"
-                showsVerticalScrollIndicator={false}
-                keyboardDismissMode="interactive"
-              >
-              {/* 銭湯名 */}
-              <View style={styles.inputContainer}>
-                <Text style={styles.inputLabel}>銭湯名</Text>
-                <TextInput
-                  style={styles.textInput}
-                  value={newVisit.bathName}
-                  onChangeText={(text) => setNewVisit(prev => ({ ...prev, bathName: text }))}
-                  placeholder="例: 山田湯"
-                />
-                {selectedFacilityForVisit && (
-                  <View style={styles.selectedFacilityContainer}>
-                    <View style={styles.selectedFacilityHeader}>
-                      <MapPin size={16} color="#0ea5e9" />
-                      <Text style={styles.selectedFacilityName}>{selectedFacilityForVisit.name}</Text>
-                    </View>
-                    <Text style={styles.selectedFacilityAddress}>{selectedFacilityForVisit.formatted_address}</Text>
-                  </View>
-                )}
-              </View>
-
-              {/* 訪問日 */}
-              <View style={styles.inputContainer}>
-                <Text style={styles.inputLabel}>訪問日</Text>
-                <TouchableOpacity
-                  style={styles.datePickerButton}
-                  onPress={() => setShowDatePicker(true)}
-                >
-                  <CalendarIcon size={16} color="#0ea5e9" />
-                  <Text style={styles.datePickerButtonText}>
-                    {formatDate(newVisit.date)}
-                  </Text>
-                </TouchableOpacity>
-                {showDatePicker && (
-                  <DateTimePicker
-                    value={new Date(newVisit.date)}
-                    mode="date"
-                    display="default"
-                    onChange={handleDateChange}
-                    maximumDate={new Date()}
-                  />
-                )}
-              </View>
-
-              {/* 訪問時間 */}
-              <View style={styles.inputContainer}>
-                <Text style={styles.inputLabel}>訪問時間</Text>
-                <View style={styles.timeButtonsRow}>
-                  <TouchableOpacity
-                    style={[styles.timePickerButton, { flex: 1 }]}
-                    onPress={() => handleTimePickerOpen('start')}
-                  >
-                    <Clock size={16} color="#0ea5e9" />
-                    <Text style={styles.timePickerButtonText}>
-                      開始: {formatTime(tempStartTime)}
-                    </Text>
-                  </TouchableOpacity>
-                  <Text style={styles.timeSeparator}>-</Text>
-                  <TouchableOpacity
-                    style={[styles.timePickerButton, { flex: 1 }]}
-                    onPress={() => handleTimePickerOpen('end')}
-                  >
-                    <Clock size={16} color="#0ea5e9" />
-                    <Text style={styles.timePickerButtonText}>
-                      終了: {formatTime(tempEndTime)}
-                    </Text>
-                  </TouchableOpacity>
-                </View>
-                {activeTimePicker === 'start' && (
-                  <View style={styles.timePickerWrapper}>
-                    <DateTimePicker
-                      value={tempStartTime}
-                      mode="time"
-                      is24Hour={true}
-                      display="spinner"
-                      onChange={handleTempStartTimeChange}
-                      themeVariant="light"
-                      textColor="#1e293b"
-                      style={styles.timePicker}
-                    />
-                    {timeValidationError && (
-                      <Text style={styles.errorText}>{timeValidationError}</Text>
-                    )}
-                    <View style={styles.timePickerButtonsRow}>
-                      <TouchableOpacity
-                        style={styles.timePickerCancelButton}
-                        onPress={handleTimeCancel}
-                      >
-                        <Text style={styles.timePickerCancelButtonText}>キャンセル</Text>
-                      </TouchableOpacity>
-                      <TouchableOpacity
-                        style={[
-                          styles.timePickerConfirmButton,
-                          timeValidationError && styles.timePickerConfirmButtonDisabled
-                        ]}
-                        onPress={handleTimeConfirm}
-                        disabled={!!timeValidationError}
-                      >
-                        <Text style={styles.timePickerConfirmButtonText}>決定</Text>
-                      </TouchableOpacity>
-                    </View>
-                  </View>
-                )}
-                {activeTimePicker === 'end' && (
-                  <View style={styles.timePickerWrapper}>
-                    <DateTimePicker
-                      value={tempEndTime}
-                      mode="time"
-                      is24Hour={true}
-                      display="spinner"
-                      onChange={handleTempEndTimeChange}
-                      themeVariant="light"
-                      textColor="#1e293b"
-                      style={styles.timePicker}
-                    />
-                    {timeValidationError && (
-                      <Text style={styles.errorText}>{timeValidationError}</Text>
-                    )}
-                    <View style={styles.timePickerButtonsRow}>
-                      <TouchableOpacity
-                        style={styles.timePickerCancelButton}
-                        onPress={handleTimeCancel}
-                      >
-                        <Text style={styles.timePickerCancelButtonText}>キャンセル</Text>
-                      </TouchableOpacity>
-                      <TouchableOpacity
-                        style={[
-                          styles.timePickerConfirmButton,
-                          timeValidationError && styles.timePickerConfirmButtonDisabled
-                        ]}
-                        onPress={handleTimeConfirm}
-                        disabled={!!timeValidationError}
-                      >
-                        <Text style={styles.timePickerConfirmButtonText}>決定</Text>
-                      </TouchableOpacity>
-                    </View>
-                  </View>
-                )}
-              </View>
-
-              {/* 評価 */}
-              <View style={styles.inputContainer}>
-                <Text style={styles.inputLabel}>評価</Text>
-                {renderStars(newVisit.rating, (star) => 
-                  setNewVisit(prev => ({ ...prev, rating: star }))
-                )}
-              </View>
-
-              {/* コメント */}
-              <View style={[styles.inputContainer, styles.commentInputContainer]}>
-                <Text style={styles.inputLabel}>コメント</Text>
-                <TextInput
-                  style={[styles.textInput, styles.commentInput]}
-                  value={newVisit.comment}
-                  onChangeText={(text) => setNewVisit(prev => ({ ...prev, comment: text }))}
-                  placeholder="感想を入力..."
-                  multiline
-                  numberOfLines={5}
-                  textAlignVertical="top"
-                  returnKeyType="default"
-                  blurOnSubmit={false}
-                />
-              </View>
-
-              {/* 写真 */}
-              <View style={styles.photoSection}>
-                <PhotoPicker
-                  photos={newVisit.photos}
-                  onPhotosChange={handlePhotosChange}
-                  maxPhotos={5}
-                />
-              </View>
-              </ScrollView>
-          </View>
-        </KeyboardAvoidingView>
-      </Modal>
+        onClose={handleCancelVisit}
+        onSave={handleSaveVisit}
+        selectedFacility={selectedFacilityForVisit}
+        mode="map"
+        title="記録を追加"
+      />
     </SafeAreaView>
   );
 }
