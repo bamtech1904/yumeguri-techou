@@ -70,17 +70,19 @@ class PlacesService {
       console.log('🔍 Progressive loading開始...');
       
       let allPlaces: Place[] = [];
+      let apiCallCount = 0; // APIコール回数を追跡
       
       // Phase 1: 優先度の高いNearby検索を最初に実行
       console.log('🎯 Phase 1: Nearby検索実行中...');
       try {
         const nearbyPlaces = await this.searchWithPlacesApi(location, radius, keyword);
+        apiCallCount++;
         allPlaces.push(...nearbyPlaces);
         
         // 最初の結果をすぐに表示
         if (nearbyPlaces.length > 0 && onProgressCallback) {
           const uniquePlaces = this.removeDuplicates(allPlaces);
-          console.log(`⚡ Phase 1完了: ${uniquePlaces.length}件を即座に表示`);
+          console.log(`⚡ Phase 1完了: ${uniquePlaces.length}件を即座に表示 (API calls: ${apiCallCount})`);
           onProgressCallback(uniquePlaces);
         }
       } catch (error) {
@@ -93,12 +95,13 @@ class PlacesService {
         try {
           console.log(`🔍 Phase 2: "${query}"検索実行中...`);
           const textPlaces = await this.searchWithTextQuery(location, query);
+          apiCallCount++;
           allPlaces.push(...textPlaces);
           
           // 追加結果があれば段階的に更新
           if (textPlaces.length > 0 && onProgressCallback) {
             const uniquePlaces = this.removeDuplicates(allPlaces);
-            console.log(`⚡ "${query}"検索完了: 累計${uniquePlaces.length}件`);
+            console.log(`⚡ "${query}"検索完了: 累計${uniquePlaces.length}件 (API calls: ${apiCallCount})`);
             onProgressCallback(uniquePlaces);
           }
         } catch (error) {
@@ -121,13 +124,14 @@ class PlacesService {
       remainingResults.forEach((result, index) => {
         if (result.status === 'fulfilled') {
           allPlaces.push(...result.value);
+          apiCallCount++;
           console.log(`✅ "${remainingQueries[index]}"検索完了: ${result.value.length}件`);
         }
       });
       
       // 最終結果
       const uniquePlaces = this.removeDuplicates(allPlaces);
-      console.log(`📊 最終検索結果: ${uniquePlaces.length}件の施設を発見`);
+      console.log(`📊 最終検索結果: ${uniquePlaces.length}件の施設を発見 (Total API calls: ${apiCallCount})`);
       
       // 最終結果をProgressiveに更新（残りの検索で新しい結果があった場合）
       if (onProgressCallback) {

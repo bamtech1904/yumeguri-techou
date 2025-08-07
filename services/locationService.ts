@@ -90,9 +90,9 @@ class LocationService {
     try {
       const subscription = await Location.watchPositionAsync(
         {
-          accuracy: Location.Accuracy.High,
-          timeInterval: 5000,
-          distanceInterval: 10,
+          accuracy: Location.Accuracy.Balanced, // リアルタイム用にBalanced（バッテリー効率重視）
+          timeInterval: 3000, // 3秒間隔（レスポンス重視）
+          distanceInterval: 5, // 5m移動したら更新（より敏感に）
         },
         (location) => {
           onLocationChange({

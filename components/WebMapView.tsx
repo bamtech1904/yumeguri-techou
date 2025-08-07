@@ -129,14 +129,49 @@ const WebMapView = React.forwardRef<any, WebMapViewProps>(function WebMapView({
         let map;
         let infoWindow;
         let markers = [];
+        let userMarker; // ユーザーの現在地マーカー
         
-        const currentLocation = {
+        // 位置追従制御のための状態管理
+        let userIsInteracting = false; // ユーザーが手動操作中かどうか
+        
+        // 現在地の管理（分離）
+        let displayCurrentLocation = { // UI表示用（固定）
+            lat: ${currentLocation.latitude},
+            lng: ${currentLocation.longitude}
+        };
+        let actualCurrentLocation = { // 実際の現在地（動的）
             lat: ${currentLocation.latitude},
             lng: ${currentLocation.longitude}
         };
         
         const facilities = ${JSON.stringify(facilities)};
         const selectedPlaceId = ${JSON.stringify(selectedPlaceId)};
+        
+        // ユーザー操作の開始を検出
+        function onUserInteractionStart() {
+            console.log('👆 ユーザー操作開始 - 位置追従を停止（リセンターボタンで復帰）');
+            userIsInteracting = true;
+        }
+        
+        // 現在地マーカーを更新する関数
+        function updateCurrentLocationMarker(lat, lng) {
+            console.log('📍 現在地マーカーを更新:', { lat, lng, userInteracting: userIsInteracting });
+            
+            // 実際の現在地を常に更新
+            actualCurrentLocation = { lat, lng };
+            
+            // ユーザーマーカーが存在する場合は位置を常に更新
+            if (userMarker) {
+                userMarker.setPosition(actualCurrentLocation);
+                console.log('✅ ユーザーマーカー位置更新完了');
+            }
+            
+            // ユーザーが操作中でない場合のみ地図中心も更新
+            if (!userIsInteracting) {
+                displayCurrentLocation = { ...actualCurrentLocation };
+                // 地図中心の更新は行わない（マーカー位置のみ更新で十分）
+            }
+        }
         
         // 距離計算関数
         function calculateDistance(lat1, lng1, lat2, lng2) {
@@ -258,9 +293,9 @@ const WebMapView = React.forwardRef<any, WebMapViewProps>(function WebMapView({
                     
                     try {
                         // インフォウィンドウの内容を生成
-                        const distanceKm = currentLocation ? calculateDistance(
-                            currentLocation.lat,
-                            currentLocation.lng,
+                        const distanceKm = actualCurrentLocation ? calculateDistance(
+                            actualCurrentLocation.lat,
+                            actualCurrentLocation.lng,
                             facility.geometry.location.lat,
                             facility.geometry.location.lng
                         ) : null;
@@ -298,7 +333,7 @@ const WebMapView = React.forwardRef<any, WebMapViewProps>(function WebMapView({
             console.log('🚀 Initializing map...');
             map = new google.maps.Map(document.getElementById('map'), {
                 zoom: 15,
-                center: currentLocation,
+                center: displayCurrentLocation,
                 mapTypeControl: true,
                 streetViewControl: false,
                 fullscreenControl: false,
@@ -317,8 +352,8 @@ const WebMapView = React.forwardRef<any, WebMapViewProps>(function WebMapView({
             console.log('📍 Markers array initialized');
             
             // ユーザーの現在位置マーカー
-            const userMarker = new google.maps.Marker({
-                position: currentLocation,
+            userMarker = new google.maps.Marker({
+                position: actualCurrentLocation,
                 map: map,
                 title: '現在地',
                 icon: {
@@ -369,9 +404,9 @@ const WebMapView = React.forwardRef<any, WebMapViewProps>(function WebMapView({
                 console.log(\`✅ Marker added to array: \${facility.name} (placeId: \${facility.place_id})\`);
                 
                 // 距離の計算
-                const distanceKm = currentLocation ? calculateDistance(
-                    currentLocation.lat,
-                    currentLocation.lng,
+                const distanceKm = actualCurrentLocation ? calculateDistance(
+                    actualCurrentLocation.lat,
+                    actualCurrentLocation.lng,
                     facility.geometry.location.lat,
                     facility.geometry.location.lng
                 ) : null;
@@ -401,7 +436,7 @@ const WebMapView = React.forwardRef<any, WebMapViewProps>(function WebMapView({
             });
             
             // 地図の中心を現在地に設定
-            map.setCenter(currentLocation);
+            map.setCenter(displayCurrentLocation);
             
             // マップクリック時のイベントリスナーを追加（マーカー以外の場所をクリックした時）
             map.addListener('click', () => {
@@ -416,6 +451,12 @@ const WebMapView = React.forwardRef<any, WebMapViewProps>(function WebMapView({
                     }));
                 }
             });
+            
+            // ユーザー操作検出のイベントリスナー
+            map.addListener('dragstart', onUserInteractionStart);
+            map.addListener('zoom_changed', onUserInteractionStart);
+            
+            console.log('👆 ユーザー操作検出リスナー設定完了（リセンターボタンで復帰）');
             
             // マーカー作成完了ログ
             console.log(\`🎯 Marker creation completed. Total markers: \${markers.length}\`);
@@ -440,7 +481,10 @@ const WebMapView = React.forwardRef<any, WebMapViewProps>(function WebMapView({
                 
                 if (data.type === 'recenter') {
                     console.log('🎯 Processing recenter message');
-                    map.setCenter(currentLocation);
+                    // リセンター時は追従を強制的に再開
+                    userIsInteracting = false;
+                    displayCurrentLocation = { ...actualCurrentLocation };
+                    map.setCenter(displayCurrentLocation);
                     map.setZoom(15);
                 } else if (data.type === 'focusOnLocation') {
                     console.log('🎯 Processing focusOnLocation message:', data);
@@ -448,6 +492,9 @@ const WebMapView = React.forwardRef<any, WebMapViewProps>(function WebMapView({
                 } else if (data.type === 'clearHighlight') {
                     console.log('🧹 Processing clearHighlight message');
                     clearHighlight();
+                } else if (data.type === 'updateCurrentLocation') {
+                    console.log('📍 Processing updateCurrentLocation message:', data.location);
+                    updateCurrentLocationMarker(data.location.lat, data.location.lng);
                 } else {
                     console.log('❓ Unknown message type:', data.type);
                 }
@@ -659,11 +706,28 @@ const WebMapView = React.forwardRef<any, WebMapViewProps>(function WebMapView({
     }
   };
 
+  const updateCurrentLocation = (newLocation: LocationCoords) => {
+    if (webViewRef.current) {
+      console.log('📍 WebMapView現在地更新:', newLocation);
+      const message = JSON.stringify({
+        type: 'updateCurrentLocation',
+        location: {
+          lat: newLocation.latitude,
+          lng: newLocation.longitude
+        }
+      });
+      webViewRef.current.postMessage(message);
+    } else {
+      console.error('❌ WebView ref is null for location update');
+    }
+  };
+
   // 外部から呼び出せるメソッドを公開
   React.useImperativeHandle(ref, () => ({
     recenter: recenterMap,
     focusOnLocation,
-    clearHighlight
+    clearHighlight,
+    updateCurrentLocation
   }), []);
 
   const GOOGLE_MAPS_API_KEY = process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY || process.env.EXPO_PUBLIC_GOOGLE_PLACES_API_KEY || '';

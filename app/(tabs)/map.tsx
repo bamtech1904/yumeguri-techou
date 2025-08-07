@@ -71,6 +71,72 @@ export default function MapScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // リアルタイム位置監視のuseEffect
+  useEffect(() => {
+    let isActive = true;
+
+    const startLocationWatching = async () => {
+      try {
+        console.log('📍 リアルタイム位置監視を開始...');
+        
+        await locationService.startWatchingLocation(
+          // 位置変更時のコールバック
+          (newLocation: LocationCoords) => {
+            if (isActive) {
+              console.log('📱 現在地更新:', newLocation);
+              setCurrentLocation(newLocation);
+              
+              // WebMapViewに現在地更新を通知
+              if (mapRef.current) {
+                mapRef.current.updateCurrentLocation(newLocation);
+              }
+              
+              // 施設リストの距離も更新
+              setFacilities(prevFacilities => 
+                prevFacilities.map(facility => {
+                  const distanceKm = locationService.calculateDistance(
+                    newLocation.latitude,
+                    newLocation.longitude,
+                    facility.geometry.location.lat,
+                    facility.geometry.location.lng
+                  );
+                  return {
+                    ...facility,
+                    distance: locationService.formatDistance(distanceKm),
+                    distanceKm,
+                  };
+                }).sort((a, b) => (a.distanceKm || 0) - (b.distanceKm || 0))
+              );
+            }
+          },
+          // エラー時のコールバック
+          (error: Error) => {
+            if (isActive) {
+              console.warn('❌ 位置監視エラー:', error.message);
+              setError('位置情報の監視中にエラーが発生しました');
+            }
+          }
+        );
+      } catch (error) {
+        if (isActive) {
+          console.error('❌ 位置監視開始エラー:', error);
+        }
+      }
+    };
+
+    // 位置監視を開始（初回位置取得完了後）
+    if (currentLocation) {
+      startLocationWatching();
+    }
+
+    // クリーンアップ関数
+    return () => {
+      isActive = false;
+      console.log('🛑 位置監視を停止...');
+      locationService.stopWatchingLocation();
+    };
+  }, [currentLocation]); // currentLocationが設定された後に監視開始
+
   // パラメータが変更された時にマップをフォーカス
   useEffect(() => {
     if (params.latitude && params.longitude && mapRef.current && currentLocation && mapInitialized) {
