@@ -20,7 +20,7 @@ export default {
       bundleIdentifier: IS_DEV
         ? 'com.yumeguri.techou.dev'
         : 'com.yumeguri.techou',
-      buildNumber: '11',
+      buildNumber: '14',
       infoPlist: {
         NSLocationWhenInUseUsageDescription:
           '湯めぐり手帳が周辺の銭湯を検索するために位置情報が必要です。',
