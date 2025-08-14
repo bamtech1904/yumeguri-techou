@@ -85,14 +85,19 @@ class LocationService {
 
   async startWatchingLocation(
     onLocationChange: (location: LocationCoords) => void,
-    onError?: (error: Error) => void
+    onError?: (error: Error) => void,
+    options?: {
+      timeInterval?: number;
+      distanceInterval?: number;
+      accuracy?: Location.Accuracy;
+    }
   ): Promise<void> {
     try {
       const subscription = await Location.watchPositionAsync(
         {
-          accuracy: Location.Accuracy.Balanced, // リアルタイム用にBalanced（バッテリー効率重視）
-          timeInterval: 3000, // 3秒間隔（レスポンス重視）
-          distanceInterval: 5, // 5m移動したら更新（より敏感に）
+          accuracy: options?.accuracy || Location.Accuracy.Balanced, // デフォルトBalanced（バッテリー効率重視）
+          timeInterval: options?.timeInterval || 3000, // デフォルト3秒間隔
+          distanceInterval: options?.distanceInterval || 5, // デフォルト5m移動で更新
         },
         (location) => {
           onLocationChange({
