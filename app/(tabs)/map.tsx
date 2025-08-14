@@ -79,6 +79,13 @@ export default function MapScreen() {
       try {
         console.log('📍 リアルタイム位置監視を開始...');
         
+        // リストビュー時は監視頻度を下げてバッテリー節約
+        const watchingOptions = showList 
+          ? { timeInterval: 10000, distanceInterval: 20 } // リストビュー: 10秒間隔、20m移動
+          : { timeInterval: 3000, distanceInterval: 5 };   // マップビュー: 3秒間隔、5m移動
+        
+        console.log('⚙️ 位置監視設定:', watchingOptions);
+        
         await locationService.startWatchingLocation(
           // 位置変更時のコールバック
           (newLocation: LocationCoords) => {
@@ -86,10 +93,7 @@ export default function MapScreen() {
               console.log('📱 現在地更新:', newLocation);
               setCurrentLocation(newLocation);
               
-              // WebMapViewに現在地更新を通知
-              if (mapRef.current) {
-                mapRef.current.updateCurrentLocation(newLocation);
-              }
+              // WebMapViewは自動的にcurrentLocationのprops変更を監視
               
               // 施設リストの距離も更新
               setFacilities(prevFacilities => 
@@ -115,7 +119,8 @@ export default function MapScreen() {
               console.warn('❌ 位置監視エラー:', error.message);
               setError('位置情報の監視中にエラーが発生しました');
             }
-          }
+          },
+          watchingOptions // 動的な監視オプションを適用
         );
       } catch (error) {
         if (isActive) {
@@ -135,54 +140,82 @@ export default function MapScreen() {
       console.log('🛑 位置監視を停止...');
       locationService.stopWatchingLocation();
     };
-  }, [currentLocation]); // currentLocationが設定された後に監視開始
+  }, [currentLocation, showList]); // currentLocationとshowListの変更時に監視設定を更新
 
-  // パラメータが変更された時にマップをフォーカス
+  // パラメータが変更された時にマップをフォーカス（改善版）
   useEffect(() => {
-    if (params.latitude && params.longitude && mapRef.current && currentLocation && mapInitialized) {
+    if (params.latitude && params.longitude && mapRef.current && mapInitialized) {
       const lat = parseFloat(params.latitude);
       const lng = parseFloat(params.longitude);
       
-      console.log('🎯 Preparing to focus on location:', { lat, lng, placeId: params.place_id });
-      console.log('✅ Conditions met:', { 
+      console.log('🎯 Focus条件確認:', { 
         hasParams: !!(params.latitude && params.longitude),
         hasMapRef: !!mapRef.current,
-        hasLocation: !!currentLocation,
-        mapInitialized 
+        mapInitialized,
+        placeId: params.place_id 
       });
       
       // ハイライトクリア状態をリセット
       setHighlightCleared(false);
       
-      // マップが初期化完了後にフォーカス
-      const timer = setTimeout(() => {
+      // リトライ機能付きのfocusOnLocation実行
+      const tryFocusOnLocation = (attempt = 1, maxAttempts = 3) => {
+        console.log(`🎯 focusOnLocation実行 (試行 ${attempt}/${maxAttempts})`);
+        
         if (mapRef.current) {
-          console.log('🚀 Calling focusOnLocation');
+          console.log('🚀 Calling focusOnLocation:', { lat, lng, placeId: params.place_id });
           mapRef.current.focusOnLocation(lat, lng, params.place_id);
+        } else if (attempt < maxAttempts) {
+          console.log(`⏳ mapRef未準備、${500 * attempt}ms後に再試行`);
+          setTimeout(() => tryFocusOnLocation(attempt + 1, maxAttempts), 500 * attempt);
         } else {
-          console.log('❌ mapRef.current still not available after delay');
+          console.error('❌ focusOnLocation失敗: mapRefが利用できません');
         }
-      }, 1000); // 1秒に延長してWebMapViewの完全な初期化を待つ
+      };
+      
+      // 初回実行（少し待ってから）
+      const timer = setTimeout(() => tryFocusOnLocation(), 500);
       
       return () => clearTimeout(timer);
     } else {
-      console.log('⏳ Waiting for conditions:', {
+      console.log('⏳ Focus条件未満:', {
         hasParams: !!(params.latitude && params.longitude),
         hasMapRef: !!mapRef.current,
-        hasLocation: !!currentLocation,
-        mapInitialized
+        mapInitialized,
+        msg: 'パラメータ、mapRef、初期化完了が必要'
       });
     }
-  }, [params, currentLocation, mapInitialized, highlightCleared]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [params.latitude, params.longitude, params.place_id, mapInitialized]); // 依存配列を最適化
 
-  // ページにフォーカスした時の処理
+  // ページにフォーカスした時の処理（改善版）
   useFocusEffect(
     useCallback(() => {
-      console.log('📍 Map screen focused');
+      console.log('📍 Map screen focused with params:', {
+        place_id: params.place_id,
+        latitude: params.latitude,
+        longitude: params.longitude
+      });
       
-      // パラメータがない状態でフォーカスされた場合（他ページから戻った場合）
-      if (!params.place_id && !params.latitude && !params.longitude) {
-        // 既にハイライトがある場合はクリア
+      // パラメータがある場合（リストから遷移）の追加チェック
+      if (params.place_id || (params.latitude && params.longitude)) {
+        console.log('🎯 URLパラメータ検知 - focus時の追加処理');
+        
+        // mapInitializedを待ってからfocusOnLocationを実行
+        if (mapInitialized && mapRef.current) {
+          const lat = parseFloat(params.latitude || '0');
+          const lng = parseFloat(params.longitude || '0');
+          
+          if (lat !== 0 && lng !== 0) {
+            console.log('🚀 useFocusEffect経由でfocusOnLocation実行');
+            setTimeout(() => {
+              if (mapRef.current) {
+                mapRef.current.focusOnLocation(lat, lng, params.place_id);
+              }
+            }, 300);
+          }
+        }
+      } else {
+        // パラメータがない場合はハイライトクリア
         if (!highlightCleared && mapRef.current && mapInitialized) {
           console.log('🧹 Clearing highlight on screen focus (no params)');
           setTimeout(() => {
@@ -190,15 +223,14 @@ export default function MapScreen() {
               mapRef.current.clearHighlight();
               setHighlightCleared(true);
             }
-          }, 500); // マップが準備できるまで少し待つ
+          }, 300);
         }
       }
       
-      // クリーンアップ関数
       return () => {
         console.log('📍 Map screen unfocused');
       };
-    }, [params.place_id, params.latitude, params.longitude, highlightCleared, mapInitialized])
+    }, [params.place_id, params.latitude, params.longitude, mapInitialized, highlightCleared])
   );
 
   const loadCurrentLocationAndFacilities = async () => {
