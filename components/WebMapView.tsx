@@ -60,6 +60,8 @@ const WebMapView = React.forwardRef<any, WebMapViewProps>(function WebMapView({
 <!DOCTYPE html>
 <html>
 <head>
+    <!-- CSP設定を一時的に無効化（地図表示問題の解決のため） -->
+    <!-- <meta http-equiv="Content-Security-Policy" content="default-src 'self' data:; script-src 'self' 'unsafe-inline' https://maps.googleapis.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: https://maps.gstatic.com https://*.googleapis.com; connect-src https://maps.googleapis.com;"> -->
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <style>
         body { margin: 0; padding: 0; height: 100vh; }
@@ -470,6 +472,21 @@ const WebMapView = React.forwardRef<any, WebMapViewProps>(function WebMapView({
 
         function initMap() {
             console.log('🚀 Initializing map...');
+            
+            // デバッグ情報をReact Nativeに送信
+            if (window.ReactNativeWebView) {
+                const apiKeyStatus = '${GOOGLE_MAPS_API_KEY}' ? 'SET' : 'MISSING';
+                window.ReactNativeWebView.postMessage(JSON.stringify({
+                    type: 'debug',
+                    message: \`Map initialization started - API Key: \${apiKeyStatus}\`,
+                    details: {
+                        apiKey: apiKeyStatus,
+                        googleMapsLoaded: typeof google !== 'undefined' && typeof google.maps !== 'undefined',
+                        timestamp: new Date().toISOString()
+                    }
+                }));
+            }
+            
             map = new google.maps.Map(document.getElementById('map'), {
                 zoom: 15,
                 center: displayCurrentLocation,
@@ -648,6 +665,38 @@ const WebMapView = React.forwardRef<any, WebMapViewProps>(function WebMapView({
                 }));
             }
         };
+        
+        // 早期エラー検知のためのタイマー
+        let initTimeout = setTimeout(function() {
+            if (typeof google === 'undefined') {
+                console.error('Google Maps API failed to load within 10 seconds');
+                if (window.ReactNativeWebView) {
+                    window.ReactNativeWebView.postMessage(JSON.stringify({
+                        type: 'timeout',
+                        message: 'Google Maps APIの読み込みがタイムアウトしました。',
+                        details: 'ネットワーク接続またはAPIキーを確認してください。APIキー: ${GOOGLE_MAPS_API_KEY ? GOOGLE_MAPS_API_KEY.substring(0, 8) + "..." : "未設定"}'
+                    }));
+                }
+            } else if (!map) {
+                console.error('Google Maps API loaded but map not initialized');
+                if (window.ReactNativeWebView) {
+                    window.ReactNativeWebView.postMessage(JSON.stringify({
+                        type: 'initTimeout',
+                        message: 'Google Maps APIは読み込まれましたが、マップの初期化に失敗しました。',
+                        details: 'initMap関数が実行されていない可能性があります。'
+                    }));
+                }
+            }
+        }, 10000); // 10秒後にチェック
+        
+        // マップが初期化されたらタイムアウトをクリア
+        const originalInitMap = window.initMap;
+        window.initMap = function() {
+            clearTimeout(initTimeout);
+            if (originalInitMap) {
+                originalInitMap();
+            }
+        };
     </script>
 </body>
 </html>
@@ -658,9 +707,18 @@ const WebMapView = React.forwardRef<any, WebMapViewProps>(function WebMapView({
   useEffect(() => {
     if (webViewRef.current && currentLocation) {
       const script = `
-        if (typeof updateCurrentLocation === 'function') {
+        (function() {
+          // Google Maps APIが読み込まれるまで待機
+          if (typeof google === 'undefined' || typeof updateCurrentLocation !== 'function') {
+            setTimeout(function() {
+              if (typeof updateCurrentLocation === 'function') {
+                updateCurrentLocation(${currentLocation.latitude}, ${currentLocation.longitude});
+              }
+            }, 1000);
+            return;
+          }
           updateCurrentLocation(${currentLocation.latitude}, ${currentLocation.longitude});
-        }
+        })();
         true;
       `;
       webViewRef.current.injectJavaScript(script);
@@ -672,10 +730,20 @@ const WebMapView = React.forwardRef<any, WebMapViewProps>(function WebMapView({
     if (webViewRef.current && facilities) {
       const facilitiesJson = JSON.stringify(facilities);
       const script = `
-        if (typeof updateFacilities === 'function') {
+        (function() {
+          // Google Maps APIが読み込まれるまで待機
+          if (typeof google === 'undefined' || typeof updateFacilities !== 'function') {
+            setTimeout(function() {
+              if (typeof updateFacilities === 'function') {
+                console.log('🔄 施設データを更新中...', ${facilities.length}, '件');
+                updateFacilities(${facilitiesJson});
+              }
+            }, 1000);
+            return;
+          }
           console.log('🔄 施設データを更新中...', ${facilities.length}, '件');
           updateFacilities(${facilitiesJson});
-        }
+        })();
         true;
       `;
       webViewRef.current.injectJavaScript(script);
@@ -688,16 +756,31 @@ const WebMapView = React.forwardRef<any, WebMapViewProps>(function WebMapView({
       // 少し待ってからデータを注入
       const timer = setTimeout(() => {
         const initScript = `
-          if (typeof updateCurrentLocation === 'function' && typeof updateFacilities === 'function') {
-            console.log('🚀 初期データを注入中...');
-            updateCurrentLocation(${currentLocation.latitude}, ${currentLocation.longitude});
-            updateFacilities(${JSON.stringify(facilities)});
-            console.log('✅ 初期データ注入完了');
-          }
+          (function() {
+            // Google Maps APIが読み込まれるまで待機（最大5秒）
+            let attempts = 0;
+            const maxAttempts = 10;
+            
+            function tryInitialize() {
+              attempts++;
+              if (typeof google !== 'undefined' && typeof updateCurrentLocation === 'function' && typeof updateFacilities === 'function') {
+                console.log('🚀 初期データを注入中...');
+                updateCurrentLocation(${currentLocation.latitude}, ${currentLocation.longitude});
+                updateFacilities(${JSON.stringify(facilities)});
+                console.log('✅ 初期データ注入完了');
+              } else if (attempts < maxAttempts) {
+                setTimeout(tryInitialize, 500);
+              } else {
+                console.error('❌ Google Maps API読み込みタイムアウト');
+              }
+            }
+            
+            tryInitialize();
+          })();
           true;
         `;
         webViewRef.current?.injectJavaScript(initScript);
-      }, 500);
+      }, 1000); // 初期待機時間を1秒に延長
       
       return () => clearTimeout(timer);
     }
@@ -705,40 +788,101 @@ const WebMapView = React.forwardRef<any, WebMapViewProps>(function WebMapView({
 
   const handleMessage = useCallback((event: any) => {
     try {
-      const data = JSON.parse(event.nativeEvent.data);
-      console.log('📨 WebView message:', data.type);
+      // より安全なデータ取得
+      const rawData = event?.nativeEvent?.data;
+      if (!rawData) {
+        console.warn('⚠️ WebView message has no data');
+        return;
+      }
+
+      const data = JSON.parse(rawData);
+      console.log('📨 WebView message:', data?.type || 'unknown');
+      
+      if (!data || !data.type) {
+        console.warn('⚠️ WebView message has no type');
+        return;
+      }
       
       switch (data.type) {
         case 'mapInitialized':
           console.log('✅ WebMapView初期化完了 - React Nativeに通知');
-          onMapInitialized?.();
+          if (onMapInitialized) {
+            try {
+              onMapInitialized();
+            } catch (callbackError) {
+              console.error('❌ onMapInitialized callback error:', callbackError);
+            }
+          }
           break;
         case 'mapClicked':
-          onMapClicked?.();
+          if (onMapClicked) {
+            try {
+              onMapClicked();
+            } catch (callbackError) {
+              console.error('❌ onMapClicked callback error:', callbackError);
+            }
+          }
           break;
         case 'detailPress':
           console.log('🔍 詳細ボタンがクリックされました:', data.facility?.name);
           if (data.facility && onMarkerPress) {
-            // WebViewから受信した施設データでonMarkerPressコールバックを実行
-            onMarkerPress(data.facility);
+            try {
+              onMarkerPress(data.facility);
+            } catch (callbackError) {
+              console.error('❌ onMarkerPress callback error:', callbackError);
+            }
           } else {
             console.error('❌ 施設データまたはonMarkerPressコールバックが見つかりません');
           }
           break;
         case 'authError':
           console.error('Google Maps認証エラー:', data.message);
-          onError?.(data.message);
+          if (onError) {
+            try {
+              onError(data.message || 'Google Maps認証エラーが発生しました');
+            } catch (callbackError) {
+              console.error('❌ onError callback error:', callbackError);
+            }
+          }
           break;
         case 'error':
           const errorMessage = data?.message || (typeof data === 'string' ? data : 'WebViewエラーが発生しました');
           console.error('WebView エラー:', errorMessage);
-          onError?.(errorMessage);
+          if (onError) {
+            try {
+              onError(errorMessage);
+            } catch (callbackError) {
+              console.error('❌ onError callback error:', callbackError);
+            }
+          }
+          break;
+        case 'debug':
+          console.log('🐛 Debug info from WebView:', data.message);
+          if (data.details) {
+            console.log('🔍 Debug details:', data.details);
+          }
+          break;
+        case 'timeout':
+        case 'initTimeout':
+        case 'loadError':
+          console.error(`⏰ WebView ${data.type}:`, data.message);
+          if (data.details) {
+            console.error('🔍 エラー詳細:', data.details);
+          }
+          if (onError) {
+            try {
+              onError(`${data.message}\n詳細: ${data.details || ''}`);
+            } catch (callbackError) {
+              console.error('❌ onError callback error:', callbackError);
+            }
+          }
           break;
         default:
           console.log('Unknown WebView message:', data.type);
       }
-    } catch (error) {
-      console.error('メッセージ処理エラー:', error);
+    } catch (parseError) {
+      console.error('❌ WebViewメッセージの解析エラー:', parseError);
+      console.error('❌ 生データ:', event?.nativeEvent?.data);
     }
   }, [onMapInitialized, onMapClicked, onError, onMarkerPress]);
 
@@ -755,16 +899,31 @@ const WebMapView = React.forwardRef<any, WebMapViewProps>(function WebMapView({
       
       // 代替手段としてJavaScriptも直接実行
       const jsCode = `
-        try {
-          console.log('🧹 Direct JS injection - clearHighlight called');
-          if (typeof clearHighlight === 'function') {
-            clearHighlight();
-          } else {
-            console.error('❌ clearHighlight function not found');
+        (function() {
+          // Google Maps APIが読み込まれるまで待機
+          if (typeof google === 'undefined' || typeof clearHighlight !== 'function') {
+            setTimeout(function() {
+              try {
+                if (typeof clearHighlight === 'function') {
+                  console.log('🧹 Delayed clearHighlight called');
+                  clearHighlight();
+                } else {
+                  console.error('❌ clearHighlight function not found after delay');
+                }
+              } catch (error) {
+                console.error('❌ Error in delayed clearHighlight:', error);
+              }
+            }, 1000);
+            return;
           }
-        } catch (error) {
-          console.error('❌ Error in clearHighlight injection:', error);
-        }
+          
+          try {
+            console.log('🧹 Direct JS injection - clearHighlight called');
+            clearHighlight();
+          } catch (error) {
+            console.error('❌ Error in clearHighlight injection:', error);
+          }
+        })();
         true;
       `;
       webViewRef.current.injectJavaScript(jsCode);
@@ -789,16 +948,31 @@ const WebMapView = React.forwardRef<any, WebMapViewProps>(function WebMapView({
       
       // 方法2: injectedJavaScript（代替手段）
       const jsCode = `
-        try {
-          console.log('🚀 Direct JS injection - focusOnLocation called');
-          if (typeof focusOnLocation === 'function') {
-            focusOnLocation(${latitude}, ${longitude}, '${placeId || ''}');
-          } else {
-            console.error('❌ focusOnLocation function not found');
+        (function() {
+          // Google Maps APIが読み込まれるまで待機
+          if (typeof google === 'undefined' || typeof focusOnLocation !== 'function') {
+            setTimeout(function() {
+              try {
+                if (typeof focusOnLocation === 'function') {
+                  console.log('🚀 Delayed focusOnLocation called');
+                  focusOnLocation(${latitude}, ${longitude}, '${placeId || ''}');
+                } else {
+                  console.error('❌ focusOnLocation function not found after delay');
+                }
+              } catch (error) {
+                console.error('❌ Error in delayed focusOnLocation:', error);
+              }
+            }, 1000);
+            return;
           }
-        } catch (error) {
-          console.error('❌ Error in injected JS:', error);
-        }
+          
+          try {
+            console.log('🚀 Direct JS injection - focusOnLocation called');
+            focusOnLocation(${latitude}, ${longitude}, '${placeId || ''}');
+          } catch (error) {
+            console.error('❌ Error in injected JS:', error);
+          }
+        })();
         true;
       `;
       console.log('📤 Sending injected JavaScript as backup');
@@ -833,6 +1007,7 @@ const WebMapView = React.forwardRef<any, WebMapViewProps>(function WebMapView({
   }), []);
 
   const GOOGLE_MAPS_API_KEY = process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY || process.env.EXPO_PUBLIC_GOOGLE_PLACES_API_KEY || '';
+
 
   if (isExpoGo) {
     return (

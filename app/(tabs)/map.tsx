@@ -77,20 +77,15 @@ export default function MapScreen() {
 
     const startLocationWatching = async () => {
       try {
-        console.log('📍 リアルタイム位置監視を開始...');
-        
         // リストビュー時は監視頻度を下げてバッテリー節約
         const watchingOptions = showList 
           ? { timeInterval: 10000, distanceInterval: 20 } // リストビュー: 10秒間隔、20m移動
           : { timeInterval: 3000, distanceInterval: 5 };   // マップビュー: 3秒間隔、5m移動
         
-        console.log('⚙️ 位置監視設定:', watchingOptions);
-        
         await locationService.startWatchingLocation(
           // 位置変更時のコールバック
           (newLocation: LocationCoords) => {
             if (isActive) {
-              console.log('📱 現在地更新:', newLocation);
               setCurrentLocation(newLocation);
               
               // WebMapViewは自動的にcurrentLocationのprops変更を監視
@@ -137,7 +132,6 @@ export default function MapScreen() {
     // クリーンアップ関数
     return () => {
       isActive = false;
-      console.log('🛑 位置監視を停止...');
       locationService.stopWatchingLocation();
     };
   }, [currentLocation, showList]); // currentLocationとshowListの変更時に監視設定を更新

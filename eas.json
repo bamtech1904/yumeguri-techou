@@ -31,7 +31,9 @@
     "production": {
       "env": {
         "NODE_ENV": "production",
-        "EXPO_USE_HERMES": "true"
+        "EXPO_USE_HERMES": "true",
+        "EXPO_PUBLIC_GOOGLE_MAPS_API_KEY": "AIzaSyCgde2sfnKwjORAv6EsO6aBpg5QxLC_iNs",
+        "EXPO_PUBLIC_GOOGLE_PLACES_API_KEY": "AIzaSyCgde2sfnKwjORAv6EsO6aBpg5QxLC_iNs"
       },
       "ios": {
         "resourceClass": "m-medium",
