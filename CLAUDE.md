@@ -67,6 +67,15 @@ The core data structure is the `Visit` interface in `store/visitStore.ts`:
 - Japanese UI text throughout the application
 - ESLint configured with Expo rules for code quality
 
+## Project Management
+
+このプロジェクトでは GitHub Projects を使用してタスク管理を行います：
+- **プロジェクト名**: 湯めぐり手帳
+- **プロジェクトID**: 5 (PVT_kwHOBb9e5s4BA_II)
+- **URL**: https://github.com/users/bamtech1904/projects/5
+- **可視性**: Private
+- **用途**: 機能開発、バグ修正、改善タスクの進捗管理
+
 ## API Integration
 
 - **Google Places API**: Real facility search with ratings, photos, and details

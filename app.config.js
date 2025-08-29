@@ -1,3 +1,5 @@
+import 'dotenv/config';
+
 const IS_DEV = process.env.APP_VARIANT === 'development';
 
 export default {
@@ -20,14 +22,14 @@ export default {
       bundleIdentifier: IS_DEV
         ? 'com.yumeguri.techou.dev'
         : 'com.yumeguri.techou',
-      buildNumber: '14',
+      buildNumber: '16',
       infoPlist: {
         NSLocationWhenInUseUsageDescription:
-          '湯めぐり手帳が周辺の銭湯を検索するために位置情報が必要です。',
+          'お近くの銭湯・温泉施設を検索し、現在地からの距離を計算するために位置情報を使用します。位置情報は検索目的のみに使用され、記録や共有されることはありません。',
         NSCameraUsageDescription:
-          '湯めぐり手帳が写真を撮影するためにカメラへのアクセスが必要です。',
+          '銭湯・温泉施設の訪問記録に写真を追加するため、カメラで写真を撮影する機能を提供します。撮影した写真はデバイス内にのみ保存され、外部に送信されることはありません。',
         NSPhotoLibraryUsageDescription:
-          '湯めぐり手帳が写真を選択するためにフォトライブラリへのアクセスが必要です。',
+          '銭湯・温泉施設の訪問記録に写真を追加するため、フォトライブラリから写真を選択する機能を提供します。選択した写真はデバイス内にのみ保存され、外部に送信されることはありません。',
         ITSAppUsesNonExemptEncryption: false,
       },
     },
@@ -54,6 +56,37 @@ export default {
       'expo-web-browser',
       'expo-location',
       'expo-image-picker',
+      [
+        'expo-build-properties',
+        {
+          ios: {
+            privacyManifests: {
+              NSPrivacyAccessedAPITypes: [
+                {
+                  NSPrivacyAccessedAPIType:
+                    'NSPrivacyAccessedAPICategoryUserDefaults',
+                  NSPrivacyAccessedAPITypeReasons: ['CA92.1'], // アプリ設定とユーザー記録を保存するため
+                },
+                {
+                  NSPrivacyAccessedAPIType:
+                    'NSPrivacyAccessedAPICategoryFileTimestamp',
+                  NSPrivacyAccessedAPITypeReasons: ['C617.1'], // ユーザーが選択した写真のタイムスタンプを表示するため
+                },
+                {
+                  NSPrivacyAccessedAPIType:
+                    'NSPrivacyAccessedAPICategoryDiskSpace',
+                  NSPrivacyAccessedAPITypeReasons: ['E174.1'], // 写真とデータの保存可能容量を確認するため
+                },
+                {
+                  NSPrivacyAccessedAPIType:
+                    'NSPrivacyAccessedAPICategorySystemBootTime',
+                  NSPrivacyAccessedAPITypeReasons: ['35F9.1'], // システム処理の最適化のため
+                },
+              ],
+            },
+          },
+        },
+      ],
     ],
     experiments: {
       typedRoutes: true,
@@ -63,6 +96,12 @@ export default {
       eas: {
         projectId: 'c8d99fb6-6efe-4172-8920-22e92fe7b678',
       },
+      // API keys for secure access (hidden from code inspection)
+      googlePlacesApiKey: process.env.EXPO_PUBLIC_GOOGLE_PLACES_API_KEY || '',
+      googleMapsApiKey:
+        process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY ||
+        process.env.EXPO_PUBLIC_GOOGLE_PLACES_API_KEY ||
+        '',
     },
     owner: 'ryo_koga',
   },

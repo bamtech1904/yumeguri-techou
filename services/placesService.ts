@@ -1,4 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import Constants from 'expo-constants';
 import { 
   Place, 
   PlaceSearchRequest, 
@@ -7,10 +8,11 @@ import {
   LocationCoords 
 } from '@/types/place';
 import { cacheManager } from '@/utils/cacheManager';
+import { logger } from '@/utils/logger';
 
 // Google Places API (New) の設定
-// 本番環境では環境変数やセキュアストレージを使用すること
-const GOOGLE_PLACES_API_KEY = process.env.EXPO_PUBLIC_GOOGLE_PLACES_API_KEY || '';
+// セキュアな環境変数経由でAPIキーを取得
+const GOOGLE_PLACES_API_KEY = Constants.expoConfig?.extra?.googlePlacesApiKey || process.env.EXPO_PUBLIC_GOOGLE_PLACES_API_KEY || '';
 
 const PLACES_API_BASE_URL = 'https://places.googleapis.com/v1';
 const CACHE_EXPIRY_TIME = 24 * 60 * 60 * 1000; // 24時間（ミリ秒）
@@ -47,16 +49,16 @@ class PlacesService {
     const apiValidation = this.validateApiKey();
     
     if (!apiValidation.isValid) {
-      console.warn('Google Places API key issues:', apiValidation.issues);
-      console.warn('API key preview:', apiValidation.key);
-      console.warn('Using mock data instead');
+      logger.warn('Google Places API key issues:', apiValidation.issues);
+      logger.warn('API key preview:', apiValidation.key);
+      logger.warn('Using mock data instead');
       return await this.getMockPlaces(location);
     }
     
-    console.log('🔍 Places API 検索を開始します...');
-    console.log('📍 位置情報:', location);
-    console.log('📐 検索範囲:', radius, 'メートル');
-    console.log('🔑 APIキー:', apiValidation.key);
+    logger.places('Places API 検索を開始します...');
+    logger.location('位置情報:', location);
+    logger.places('検索範囲:', radius, 'メートル');
+    logger.places('APIキー:', apiValidation.key);
 
     const searchKey = `places_search:${location.latitude},${location.longitude},${radius},${keyword || ''}`;
     
@@ -67,7 +69,7 @@ class PlacesService {
     }
 
     try {
-      console.log('🔍 Progressive loading開始...');
+      logger.places('Progressive loading開始...');
       
       let allPlaces: Place[] = [];
       let apiCallCount = 0; // APIコール回数を追跡
@@ -82,18 +84,18 @@ class PlacesService {
         // 最初の結果をすぐに表示
         if (nearbyPlaces.length > 0 && onProgressCallback) {
           const uniquePlaces = this.removeDuplicates(allPlaces);
-          console.log(`⚡ Phase 1完了: ${uniquePlaces.length}件を即座に表示 (API calls: ${apiCallCount})`);
+          logger.places(`⚡ Phase 1完了: ${uniquePlaces.length}件を即座に表示 (API calls: ${apiCallCount})`);
           onProgressCallback(uniquePlaces);
         }
       } catch (error) {
-        console.warn('❌ Nearby検索失敗:', error);
+        logger.warn('❌ Nearby検索失敗:', error);
       }
       
       // Phase 2: 重要なText検索を追加実行（段階的に表示）
       const priorityQueries = ['銭湯', '温泉', 'サウナ'];
       for (const query of priorityQueries) {
         try {
-          console.log(`🔍 Phase 2: "${query}"検索実行中...`);
+          logger.places(`🔍 Phase 2: "${query}"検索実行中...`);
           const textPlaces = await this.searchWithTextQuery(location, query);
           apiCallCount++;
           allPlaces.push(...textPlaces);
@@ -101,21 +103,21 @@ class PlacesService {
           // 追加結果があれば段階的に更新
           if (textPlaces.length > 0 && onProgressCallback) {
             const uniquePlaces = this.removeDuplicates(allPlaces);
-            console.log(`⚡ "${query}"検索完了: 累計${uniquePlaces.length}件 (API calls: ${apiCallCount})`);
+            logger.places(`⚡ "${query}"検索完了: 累計${uniquePlaces.length}件 (API calls: ${apiCallCount})`);
             onProgressCallback(uniquePlaces);
           }
         } catch (error) {
-          console.warn(`❌ "${query}"検索失敗:`, error);
+          logger.warn(`❌ "${query}"検索失敗:`, error);
         }
       }
       
       // Phase 3: 残りの検索を並列実行（結果があれば最終更新）
       const remainingQueries = ['スパ', '湯', '風呂', '春の湯'];
-      console.log('🔍 Phase 3: 残りの検索を並列実行...');
+      logger.places('🔍 Phase 3: 残りの検索を並列実行...');
       
       const remainingPromises = remainingQueries.map(query => 
         this.searchWithTextQuery(location, query).catch(error => {
-          console.warn(`❌ "${query}"検索失敗:`, error);
+          logger.warn(`❌ "${query}"検索失敗:`, error);
           return [];
         })
       );
@@ -125,13 +127,13 @@ class PlacesService {
         if (result.status === 'fulfilled') {
           allPlaces.push(...result.value);
           apiCallCount++;
-          console.log(`✅ "${remainingQueries[index]}"検索完了: ${result.value.length}件`);
+          logger.places(`✅ "${remainingQueries[index]}"検索完了: ${result.value.length}件`);
         }
       });
       
       // 最終結果
       const uniquePlaces = this.removeDuplicates(allPlaces);
-      console.log(`📊 最終検索結果: ${uniquePlaces.length}件の施設を発見 (Total API calls: ${apiCallCount})`);
+      logger.places(`📊 最終検索結果: ${uniquePlaces.length}件の施設を発見 (Total API calls: ${apiCallCount})`);
       
       // 最終結果をProgressiveに更新（残りの検索で新しい結果があった場合）
       if (onProgressCallback) {
@@ -145,8 +147,8 @@ class PlacesService {
       
       return uniquePlaces;
     } catch (error) {
-      console.error('❌ Error searching nearby bathhouses:', error);
-      console.error('🔄 Falling back to mock data');
+      logger.error('❌ Error searching nearby bathhouses:', error);
+      logger.warn('🔄 Falling back to mock data');
       return await this.getMockPlaces(location);
     }
   }

@@ -8,7 +8,8 @@ interface ApiDebugInfoProps {
 }
 
 export default function ApiDebugInfo({ visible, onClose }: ApiDebugInfoProps) {
-  if (!visible) return null;
+  // 本番環境では完全に無効化
+  if (__DEV__ === false || !visible) return null;
 
   const apiValidation = placesService.validateApiKey();
 

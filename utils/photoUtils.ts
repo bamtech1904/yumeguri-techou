@@ -1,5 +1,6 @@
 import { Alert } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
+import { logger } from './logger';
 
 export interface PhotoAsset {
   uri: string;
@@ -18,33 +19,33 @@ export interface PhotoPickerResult {
 
 // 権限確認と要求
 const checkCameraPermission = async (): Promise<boolean> => {
-  console.log('📸 カメラ権限確認開始');
+  logger.debug('📸 カメラ権限確認開始');
   
   try {
     const { status } = await ImagePicker.requestCameraPermissionsAsync();
-    console.log('📸 カメラ権限状態:', status);
+    logger.debug('📸 カメラ権限状態:', status);
     
     const granted = status === 'granted';
-    console.log('📸 カメラ権限:', granted ? '許可' : '拒否');
+    logger.debug('📸 カメラ権限:', granted ? '許可' : '拒否');
     return granted;
   } catch (error) {
-    console.error('❌ カメラ権限確認エラー:', error);
+    logger.error('❌ カメラ権限確認エラー:', error);
     return false;
   }
 };
 
 const checkPhotoLibraryPermission = async (): Promise<boolean> => {
-  console.log('📷 フォトライブラリ権限確認開始');
+  logger.debug('📷 フォトライブラリ権限確認開始');
   
   try {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    console.log('📷 フォトライブラリ権限状態:', status);
+    logger.debug('📷 フォトライブラリ権限状態:', status);
     
     const granted = status === 'granted';
-    console.log('📷 フォトライブラリ権限:', granted ? '許可' : '拒否');
+    logger.debug('📷 フォトライブラリ権限:', granted ? '許可' : '拒否');
     return granted;
   } catch (error) {
-    console.error('❌ フォトライブラリ権限確認エラー:', error);
+    logger.error('❌ フォトライブラリ権限確認エラー:', error);
     return false;
   }
 };
@@ -71,20 +72,20 @@ export const showPhotoPickerOptions = (): Promise<PhotoPickerResult> => {
 };
 
 export const pickFromCamera = async (): Promise<PhotoPickerResult> => {
-  console.log('📸 カメラ撮影開始');
+  logger.debug('📸 カメラ撮影開始');
   
   try {
     // 権限確認
     const hasPermission = await checkCameraPermission();
     if (!hasPermission) {
-      console.error('❌ カメラ権限が拒否されました');
+      logger.warn('❌ カメラ権限が拒否されました');
       return { 
         success: false, 
         error: 'カメラの権限が必要です。設定からカメラへのアクセスを許可してください。' 
       };
     }
 
-    console.log('📸 カメラ起動中...');
+    logger.debug('📸 カメラ起動中...');
     
     const result = await ImagePicker.launchCameraAsync({
       mediaTypes: 'images',
@@ -93,15 +94,17 @@ export const pickFromCamera = async (): Promise<PhotoPickerResult> => {
       quality: 0.8,
     });
 
-    console.log('📸 カメラレスポンス:', result);
+    logger.debug('📸 カメラレスポンス:', result);
     
     if (result.canceled) {
-      console.log('📸 カメラ撮影キャンセル');
+      logger.debug('📸 カメラ撮影キャンセル');
       return { success: false };
     }
 
     if (result.assets && result.assets.length > 0) {
-      console.log('📸 写真取得成功:', result.assets.length + '枚');
+      logger.debug('📸 写真取得成功:', result.assets.length + '枚');
+      
+      // 画像をそのまま使用（最適化は一時的に無効）
       const photos: PhotoAsset[] = result.assets.map(asset => ({
         uri: asset.uri,
         filename: asset.fileName || undefined,
@@ -113,11 +116,11 @@ export const pickFromCamera = async (): Promise<PhotoPickerResult> => {
 
       return { success: true, photos };
     } else {
-      console.error('📸 写真データが空です');
+      logger.error('📸 写真データが空です');
       return { success: false, error: '写真の取得に失敗しました' };
     }
   } catch (error) {
-    console.error('📸 カメラ処理エラー:', error);
+    logger.error('📸 カメラ処理エラー:', error);
     return { 
       success: false, 
       error: error instanceof Error ? error.message : '写真の撮影に失敗しました' 
@@ -158,7 +161,9 @@ export const pickFromGallery = async (): Promise<PhotoPickerResult> => {
     }
 
     if (result.assets && result.assets.length > 0) {
-      console.log('📷 写真取得成功:', result.assets.length + '枚');
+      logger.debug('📷 写真取得成功:', result.assets.length + '枚');
+      
+      // 画像をそのまま使用（最適化は一時的に無効）
       const photos: PhotoAsset[] = result.assets.map(asset => ({
         uri: asset.uri,
         filename: asset.fileName || undefined,

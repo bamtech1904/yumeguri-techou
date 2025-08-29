@@ -540,6 +540,8 @@ export default function MapScreen() {
     <TouchableOpacity
       style={styles.facilityCard}
       onPress={() => handleFacilityCardPress(item)}
+      accessibilityLabel={`${item.name}, ${item.formatted_address}, 評価${item.rating?.toFixed(1) || 'なし'}, 距離${item.distance || '不明'}`}
+      accessibilityHint='タップして地図上で表示'
     >
       <View style={styles.facilityHeader}>
         <MapPin size={20} color="#0ea5e9" />
@@ -574,6 +576,8 @@ export default function MapScreen() {
             e.stopPropagation();
             handleAddToWishlist(item);
           }}
+          accessibilityLabel={isInWishlist(item.place_id) ? `${item.name}を行きたいリストから削除` : `${item.name}を行きたいリストに追加`}
+          accessibilityHint='行きたい施設を管理します'
         >
           <Heart 
             size={16} 
@@ -593,6 +597,8 @@ export default function MapScreen() {
             e.stopPropagation();
             handleFacilityPress(item);
           }}
+          accessibilityLabel={`${item.name}の訪問記録を追加`}
+          accessibilityHint='銭湯への訪問記録を新しく作成します'
         >
           <Plus size={16} color="#ffffff" />
           <Text style={styles.primaryButtonText}>記録を追加</Text>
@@ -611,12 +617,16 @@ export default function MapScreen() {
               style={styles.refreshButton}
               onPress={showList ? handleRefresh : handleRecenterMap}
               disabled={loading}
+              accessibilityLabel={showList ? '施設リストを更新' : '地図を現在地にセンタリング'}
+              accessibilityHint={showList ? '周辺の施設を再検索します' : '地図を現在地中心に表示します'}
             >
               <Locate size={20} color={loading ? '#9ca3af' : '#0ea5e9'} />
             </TouchableOpacity>
             <TouchableOpacity
               style={[styles.viewToggle, showList && styles.viewToggleActive]}
               onPress={toggleView}
+              accessibilityLabel={showList ? '地図表示に切り替え' : 'リスト表示に切り替え'}
+              accessibilityHint='施設の表示方法を変更します'
             >
               <Text style={[styles.viewToggleText, showList && styles.viewToggleTextActive]}>
                 {showList ? '地図' : 'リスト'}
@@ -639,6 +649,8 @@ export default function MapScreen() {
             placeholder="銭湯を検索..."
             value={searchQuery}
             onChangeText={setSearchQuery}
+            accessibilityLabel='銭湯検索フィールド'
+            accessibilityHint='銭湯の名前や住所で検索できます'
           />
         </View>
       </View>
