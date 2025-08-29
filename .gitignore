@@ -45,3 +45,35 @@ builds/
 
 # temporary files
 tmp/
+
+# IDE and editor files
+.vscode/settings.json
+.idea/
+*.swp
+*.swo
+*~
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Logs and databases
+*.log
+*.sqlite
+*.db
+
+# Cloud and deployment
+.vercel/
+.netlify/
+.firebase/
+
+# Additional security
+secrets/
+private/
+config/local.*
+*.backup
